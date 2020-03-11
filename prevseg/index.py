@@ -59,8 +59,8 @@ DIR_COARSE_SEG = DIR_BREAKFAST / 'segmentation_coarse/'
 DIR_FINE_SEG = DIR_BREAKFAST / 'segmentation_fine/'
 
 # Path to the models and checkpoint direcotories
-DIR_BK_WEIGHTS = DIR_MODELS / 'weights'
-DIR_BK_CHECKPOINTS = DIR_MODELS / 'checkpoints'
+DIR_WEIGHTS = DIR_MODELS_SL / 'weights'
+DIR_CHECKPOINTS = DIR_MODELS_SL / 'checkpoints'
 
 # Logs
 DIR_LOGS_TB = DIR_LOGS / 'tensorboard'

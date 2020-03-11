@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 class BreakfastClipsDataset(Dataset):
     def __init__(self, data_names_path, data_path):
-        
         # Data names path
         if not isiterable(data_names_path):
             data_names_path = [data_names_path]
@@ -47,25 +46,24 @@ class BreakfastClipsDataset(Dataset):
     
 
 class Breakfast64DimFVDataset(BreakfastClipsDataset):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         # Data Paths
         data_names_path = [index.PATH_64_FVS_EVENT_PATHS,
                            index.PATH_64_FVS_NONEVENT_PATHS]
         data_path = [index.PATH_64_FVS_EVENT_DATA,
                      index.PATH_64_FVS_NONEVENT_DATA]
-        super().__init__(data_names_path, data_path)
+        super().__init__(data_names_path, data_path, *args, **kwargs)
 
 
 class BreakfastI3DFVDataset(BreakfastClipsDataset):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         # Data Paths
         data_names_path = [index.PATH_I3D_FVS_EVENT_PATHS,
                            index.PATH_I3D_FVS_NONEVENT_PATHS]
         data_path = [index.PATH_I3D_FVS_EVENT_DATA,
                      index.PATH_I3D_FVS_NONEVENT_DATA]
-        super().__init__(data_names_path, data_path)
+        super().__init__(data_names_path, data_path, *args, **kwargs)
         
-
 
 class FlattenedImageDataset(IterableDataset):
     def __init__(self, dir_root=index.DIR_BREAKFAST_VIDEOS, glob='*.avi'):

@@ -6,6 +6,6 @@ DIM_C = 3
 
 DIMS = ('h', 'w', 'c')
 
-DEFAULT_BATCH_SIZE = 16
+DEFAULT_BATCH_SIZE = 256
 
 SEED = 117

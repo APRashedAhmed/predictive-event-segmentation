@@ -5,6 +5,7 @@ from functools import wraps
 
 import torch
 import torch.nn as nn
+import numpy as np
 import pytorch_lightning as pl
 from torch.nn import functional as F, GRU
 from torch.autograd import Variable
@@ -77,6 +78,7 @@ class PredCell(object):
 
         
 class PredNet(pl.LightningModule):
+    name = 'prednet'
     def __init__(self, hparams, ds=None):
         super().__init__()
         # Attribute definitions
