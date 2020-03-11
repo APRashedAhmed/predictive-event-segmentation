@@ -1,0 +1,2 @@
+include versioneer.py
+include prevseg/_version.py

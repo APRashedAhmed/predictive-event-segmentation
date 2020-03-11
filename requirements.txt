@@ -1,0 +1,11 @@
+click
+awscli
+flake8
+numpy
+pandas
+jupyter
+pyyaml
+coloredlogs
+matplotlib
+watermark
+tqdm
