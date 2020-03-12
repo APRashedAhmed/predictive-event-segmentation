@@ -20,66 +20,83 @@ logger = logging.getLogger(__name__)
 
 class PredCell(object):
     """Organizational class."""
-    def __init__(self, parent, layer_num, hparams, a_channels, r_channels):
+    def __init__(self, parent, layer_num, hparams, a_channels, r_channels, 
+                 RecurrentClass=LSTM):
         super().__init__()
         self.parent = parent
-        self.layer_num = layer_num        
-        if isinstance(hparams, dict):
-            self.hparams = Namespace(**hparams)
-        else:
-            self.hparams = hparams
+        self.layer_num = layer_num
+        self.hparams = hparams
         self.a_channels = a_channels
         self.r_channels = r_channels
+        self.RecurrentClass = RecurrentClass
         
         # Reccurent
-        self.recurrent = LSTM(2 * self.a_channels[self.layer_num],
-                              self.r_channels[self.layer_num])
-        self.recurrent.reset_parameters()
-        
+        self.recurrent = self.build_recurrent()
         # Dense
-        self.dense = nn.Sequential(
+        self.dense = self.build_dense()
+        # Update
+        self.update_a = self.build_update()
+        # upsample - set at cell level for future
+        self.upsample = nn.Upsample(scale_factor=2)
+        
+        # Build E, R, and H
+        self.reset()
+        # Book-keeping
+        self.update_parent()
+            
+    def build_recurrent(self):
+        recurrent = self.RecurrentClass(
+            2 * (self.a_channels[self.layer_num] +
+                 self.r_channels[self.layer_num+1]),
+            #+ self.r_channels[self.layer_num+1],
+            self.r_channels[self.layer_num])
+        recurrent.reset_parameters()
+        return recurrent
+    
+    def build_dense(self):
+        dense = nn.Sequential(
             nn.Linear(self.r_channels[self.layer_num],
                       self.a_channels[self.layer_num]),
             nn.ReLU())
         if self.layer_num == 0:
-            self.dense.add_module('satlu', SatLU())
-            
-        # Update
+            dense.add_module('satlu', SatLU())
+        return dense
+        
+    def build_update(self):
         if self.layer_num < self.hparams.n_layers - 1:
-            self.update_a = nn.Sequential(
+            return nn.Sequential(
                 nn.Linear(
                     2 * self.a_channels[self.layer_num],
                     self.a_channels[self.layer_num + 1]),
                 nn.ReLU())
-        
-        # Build E, R, and H
-        self.reset()
-        
-        # Book keeping
-        self.modules = {'recurrent' : self.recurrent, 'dense' : self.dense}
-        if hasattr(self, 'update_a'):
-            self.modules['update_a'] = self.update_a
-        # Hack to appease the pytorch-gods
-        for name, module in self.modules.items():
-            setattr(self.parent, f'predcell_{self.layer_num}_{name}', module)
+        else:
+            return None
             
     def reset(self, batch_size=None):
         batch_size = batch_size or self.hparams.batch_size
         # E, R, and H variables
-        self.E = Variable(torch.zeros(
-            1,                  # Single time step
-            batch_size,
-            2 * self.a_channels[self.layer_num])).cuda()
-        self.R = Variable(torch.zeros(
-            1,                  # Single time step
-            batch_size,
-            self.r_channels[self.layer_num])).cuda()
+        self.E = torch.zeros(1,                  # Single time step
+                             batch_size,
+                             2*self.a_channels[self.layer_num],
+                             device=self.parent.device)
+        self.R = torch.zeros(1,                  # Single time step
+                             batch_size,
+                             self.r_channels[self.layer_num],
+                             device=self.parent.device)
         self.H = None
-
         
+    def update_parent(self):
+        self.modules = {'recurrent' : self.recurrent, 'dense' : self.dense}
+        if hasattr(self, 'update_a') and self.update_a is not None:
+            self.modules['update_a'] = self.update_a
+        # Hack to appease the pytorch-gods
+        for name, module in self.modules.items():
+            setattr(self.parent, f'predcell_{self.layer_num}_{name}', module)
+
+
 class PredNet(pl.LightningModule):
     name = 'prednet'
-    def __init__(self, hparams, ds=None):
+    def __init__(self, hparams, ds=None, CellClass=PredCell):
         super().__init__()
         # Attribute definitions
         self.hparams = hparams
@@ -88,7 +105,16 @@ class PredNet(pl.LightningModule):
         self.input_size = self.hparams.input_size
         self.time_steps = self.hparams.time_steps
         self.batch_size = self.hparams.batch_size
+        self.layer_loss_mode = self.hparams.layer_loss_mode
         self.ds = ds
+        self.CellClass = CellClass
+        
+        if self.hparams.device == 'cuda' and torch.cuda.is_available():
+            print('Using GPU', flush=True)
+            self.device = torch.device('cuda')
+        else:
+            print('Using CPU', flish=True)
+            self.device = torch.device('cpu')
 
         # Put together the model
         self.build_model()
@@ -106,80 +132,117 @@ class PredNet(pl.LightningModule):
             'Invalid output_mode: ' + str(output_mode)
 
         # Make all the pred cells
-        self.predcells = [PredCell(self,
-                                   layer_num,
-                                   self.hparams,
-                                   self.a_channels,
-                                   self.r_channels)
+        self.predcells = [self.CellClass(self,
+                                         layer_num,
+                                         self.hparams,
+                                         self.a_channels,
+                                         self.r_channels)
                           for layer_num in range(self.n_layers)]
         
         # How to weight the errors
         # 1 followed by zeros means just minimize error at lowest layer
-        self.layer_loss_weights = Variable(torch.FloatTensor(
-            [[1.]] + [[0.]]*(self.n_layers-1)).cuda())
+        self.layer_loss_weights = self.build_layer_loss_weights(
+            self.layer_loss_mode)
         # How much to weight errors at each timestep
-        self.time_loss_weights = 1. / (self.time_steps - 1) \
-                                 * torch.ones(self.time_steps, 1)
-        # Dont count first time step
-        self.time_loss_weights[0] = 0
-        self.time_loss_weights = Variable(self.time_loss_weights.cuda())
+        self.time_loss_weights = self.build_time_loss_weights()
         
-        if self.hparams.device == 'cuda' and torch.cuda.is_available():
-            print('Using GPU', flush=True)
-            self.cuda()
-
-    def forward(self, input):
-        total_error = []
-        # Set the expected batch size
-        for cell in self.predcells:
-            cell.reset(input.size(0))
-
-        for t in range(self.time_steps):
-            A = input[:,t,:].unsqueeze(0)
-            A = A.type(torch.cuda.FloatTensor)
-
-            # Loop backwards
-            for cell in reversed(self.predcells):
-                E, R = cell.E, cell.R
-                # First time step
-                if t == 0:
-                    hx = (R, R)
-                else:
-                    hx = cell.H
-
-                cell.R, cell.H = cell.recurrent(E, hx)
-
+    def build_layer_loss_weights(self, mode='first'):
+        if mode == 'first':
+            first = torch.zeros(self.n_layers, 1, device=self.device)
+            first[0][0] = 1
+            return first
+        elif mode == 'all':
+            return 1. / (self.n_layer-1) * torch.ones(self.n_layer, 1,
+                                                      device=self.device)
+        else:
+            raise Exception(f'Invalid layer loss mode "{mode}".')
+            
+    def build_time_loss_weights(self, time_steps=None):
+        time_steps = time_steps or self.time_steps
+        # How much to weight errors at each timestep
+        time_loss_weights = 1. / (time_steps-1) * torch.ones(time_steps, 1,
+                                                             device=self.device)
+        # Dont count first time step
+        time_loss_weights[0] = 0
+        return time_loss_weights
+    
+    def check_input_shape(self, input):
+        batch_size, time_steps, *input_size = input.shape
+        
+        # Reset batch_size-dependent things
+        if batch_size != self.batch_size:
+            self.batch_size = batch_size
             for cell in self.predcells:
-                # Go from R to A_hat
-                A_hat = cell.dense(cell.R)
+                cell.reset(self.batch_size)
+                
+        # Reset time_step-dependent things
+        if time_steps != self.time_steps:
+            self.time_steps = time_steps
+            self.time_loss_weights = self.build_time_loss_weights(
+                self.time_steps)
+            
+        return batch_size, time_steps, *input_size
+    
+    def top_down_pass(self, t):
+        # Loop backwards
+        for l, cell in reversed(list(enumerate(self.predcells))):
+            E, R = cell.E, cell.R
+            # First time step
+            if t == 0:
+                hx = (R, R)
+            else:
+                hx = cell.H
 
-                # Convenience
-                if cell.layer_num == 0:
-                    frame_prediction = A_hat
+            # If not in the last layer, upsample R and
+            if l < self.n_layers - 1:
+                E = torch.cat((E,  cell.upsample(self.predcells[l+1].R)), 2)
 
-                # Split to 2 Es
-                pos = F.relu(A_hat - A)
-                neg = F.relu(A - A_hat)
-                E = torch.cat([pos, neg], 2)
-                cell.E = E
+            cell.R, cell.H = cell.recurrent(E, hx)
+            
+    def bottom_up_pass(self):
+        for cell in self.predcells:
+            # Go from R to A_hat
+            A_hat = cell.dense(cell.R)
 
-                # If not last layer, update stored A
-                if cell.layer_num < self.n_layers - 1:
-                    A = cell.update_a(E)
+            # Convenience
+            if self.output_mode == 'prediction' and cell.layer_num == 0:
+                self.frame_prediction = A_hat
 
+            # Split to 2 Es
+            pos = F.relu(A_hat - self.A)
+            neg = F.relu(self.A - A_hat)
+            E = torch.cat([pos, neg], 2)
+            cell.E = E
+
+            # If not last layer, update stored A
+            if cell.layer_num < self.n_layers - 1:
+                self.A = cell.update_a(E)
+            
+    def forward(self, input):
+        _, time_steps, *_ = self.check_input_shape(input)
+        
+        total_error = []
+
+        for t in range(time_steps):
+            self.A = input[:,t,:].unsqueeze(0).to(self.device, torch.float)
+            
+            # Loop from top layer to update R and H
+            self.top_down_pass(t)
+            # Loop bottom up to get E and A
+            self.bottom_up_pass()
+            
             if self.output_mode == 'error':
                 mean_error = torch.cat(
                     [torch.mean(cell.E.view(cell.E.size(1), -1),
                                 1, keepdim=True)
                      for cell in self.predcells], 1)
-
                 # batch x n_layers
                 total_error.append(mean_error)
         
         if self.output_mode == 'error':
             return torch.stack(total_error, 2) # batch x n_layers x nt
         elif self.output_mode == 'prediction':
-            return frame_prediction
+            return self.frame_prediction
 
     def timeit(method):
         """Combination of https://stackoverflow.com/questions/51503672/decorator-for-timeit-timeit-method/51503837#51503837,
@@ -229,7 +292,6 @@ class PredNet(pl.LightningModule):
     
     def _common_step(self, batch, batch_idx, mode):
         data, path = batch
-        data = Variable(data)
         errors = self.forward(data) # batch x n_layers x nt
         loc_batch = errors.size(0)
         errors = torch.mm(errors.view(-1, self.time_steps), 
