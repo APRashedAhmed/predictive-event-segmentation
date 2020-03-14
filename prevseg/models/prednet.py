@@ -113,7 +113,7 @@ class PredNet(pl.LightningModule):
             print('Using GPU', flush=True)
             self.device = torch.device('cuda')
         else:
-            print('Using CPU', flish=True)
+            print('Using CPU', flush=True)
             self.device = torch.device('cpu')
 
         # Put together the model
