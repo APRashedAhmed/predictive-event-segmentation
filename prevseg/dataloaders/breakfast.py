@@ -15,7 +15,7 @@ from prevseg.constants import DIM_H, DIM_W, DIM_C, DEFAULT_BATCH_SIZE
 logger = logging.getLogger(__name__)
 
 
-class BreakfastClipsDataset(Dataset):
+class _BreakfastClipsDataset(Dataset):
     def __init__(self, data_names_path, data_path):
         # Data names path
         if not isiterable(data_names_path):
@@ -45,7 +45,7 @@ class BreakfastClipsDataset(Dataset):
         return self.data[idx, :, :], str(self.paths[idx])
     
 
-class Breakfast64DimFVDataset(BreakfastClipsDataset):
+class Breakfast64DimFVDataset(_BreakfastClipsDataset):
     def __init__(self, *args, **kwargs):
         # Data Paths
         data_names_path = [index.PATH_64_FVS_EVENT_PATHS,
@@ -55,7 +55,7 @@ class Breakfast64DimFVDataset(BreakfastClipsDataset):
         super().__init__(data_names_path, data_path, *args, **kwargs)
 
 
-class BreakfastI3DFVDataset(BreakfastClipsDataset):
+class BreakfastI3DFVDataset(_BreakfastClipsDataset):
     def __init__(self, *args, **kwargs):
         # Data Paths
         data_names_path = [index.PATH_I3D_FVS_EVENT_PATHS,
