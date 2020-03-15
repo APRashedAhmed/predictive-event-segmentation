@@ -12,6 +12,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 
+import prevseg.constants as const
 from prevseg.torch.lstm import LSTM
 from prevseg.torch.activations import SatLU
 
@@ -118,8 +119,17 @@ class PredNet(pl.LightningModule):
 
         # Put together the model
         self.build_model()
+        
+    @staticmethod
+    def set_seed(seed):
+        np.random.seed(seed)
+        torch.manual_seed(seed)               
 
-    def build_model(self):        
+    def build_model(self):
+        # Set the seed if provided
+        if hasattr(self.hparams, 'seed'):
+            self.set_seed(self.hparams.seed)
+        
         # Channel sizes
         self.r_channels = [self.input_size // (2**i) 
                            for i in range(self.n_layers)] + [0,] # Convenience
@@ -268,12 +278,13 @@ class PredNet(pl.LightningModule):
                   'several minutes...', flush=True)
         self.ds = self.ds or BreakfastI3DFVDataset()
         self.ds_length = len(self.ds)
-        np.random.seed(self.hparams.seed)
-        self.indices = list(range(self.ds_length))
-        self.train_sampler = SubsetRandomSampler(
-            self.indices[self.hparams.n_val:])
-        self.val_sampler = SubsetRandomSampler(
-            self.indices[:self.hparams.n_val])
+        
+        n_test, n_val = self.hparams.n_test, self.hparams.n_val
+        indices = list(range(self.ds_length))
+        
+        self.test_sampler = SubsetRandomSampler(indices[:n_test])
+        self.val_sampler = SubsetRandomSampler(indices[n_test : n_test+n_val])
+        self.train_sampler = SubsetRandomSampler(indices[n_test+n_val:])
         
     def train_dataloader(self):
         return DataLoader(self.ds, 
@@ -285,6 +296,12 @@ class PredNet(pl.LightningModule):
         return DataLoader(self.ds, 
                           batch_size=self.batch_size, 
                           sampler=self.val_sampler,
+                          num_workers=self.hparams.n_workers)
+
+    def test_dataloader(self):
+        return DataLoader(self.ds, 
+                          batch_size=self.batch_size, 
+                          sampler=self.test_sampler,
                           num_workers=self.hparams.n_workers)
     
     def configure_optimizers(self):
@@ -308,6 +325,15 @@ class PredNet(pl.LightningModule):
         self.logger.experiment.add_scalar(f'{prefix}loss', 
                                           errors, self.global_step)
         return {f'{prefix}loss' : errors}
+    
+    def training_step(self, batch, batch_idx):
+        return self._common_step(batch, batch_idx, 'train')
+    
+    def validation_step(self, batch, batch_idx):
+        return self._common_step(batch, batch_idx, 'val')
+
+    def validation_step(self, batch, batch_idx):
+        return self._common_step(batch, batch_idx, 'test')
 
     def validation_epoch_end(self, output):
         out_dict = {}
@@ -315,9 +341,11 @@ class PredNet(pl.LightningModule):
                                         for out in output])
         out_dict['global_step'] = self.global_step
         return out_dict
+
+    def test_epoch_end(self, output):
+        out_dict = {}
+        out_dict['test_loss'] = np.mean([out['test_loss'].item()
+                                        for out in output])
+        out_dict['global_step'] = self.global_step
+        return out_dict
     
-    def training_step(self, batch, batch_idx):
-        return self._common_step(batch, batch_idx, 'train')
-    
-    def validation_step(self, batch, batch_idx):
-        return self._common_step(batch, batch_idx, 'val')
