@@ -183,3 +183,32 @@ def flatten(inp_iter):
             else:
                 yield val
     return list(inner(inp_iter))
+
+def instances_and_names_in_module(module, cls=None):
+    """Returns all instances of the passed class and their names.
+    
+    Parameters
+    ----------
+    module : Module
+    	Module name to be searched through.
+
+    cls : Class
+    	Class to check each object against.
+
+    Returns
+    -------
+    instances : list of tuples
+    	List if name, instance pairs
+    """
+    instances = []
+    all_instances = inspect.getmembers(module)
+    for name, obj in all_instances:
+        if cls is not None:
+            try:
+                if not isinstance(obj, cls):
+                    continue
+            except TypeError:
+                continue
+        instances.append((name, obj))
+    return instances
+

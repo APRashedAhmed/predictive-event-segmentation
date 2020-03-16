@@ -66,7 +66,7 @@ class BreakfastI3DFVDataset(_BreakfastClipsDataset):
         
 
 class FlattenedImageDataset(IterableDataset):
-    def __init__(self, dir_root=index.DIR_BREAKFAST_VIDEOS, glob='*.avi'):
+    def __init__(self, dir_root=index.DIR_BK_VIDEOS, glob='*.avi'):
 
         self.dir_root = Path(dir_root)
         self.glob = glob
@@ -106,7 +106,7 @@ class FlattenedImageDataset(IterableDataset):
 
 class BreakfastImageDataset(IterableDataset):
 
-    def __init__(self, path_root=index.DIR_BREAKFAST_VIDEOS, glob='*.avi',
+    def __init__(self, path_root=index.DIR_BK_VIDEOS, glob='*.avi',
                  time_depth=DEFAULT_BATCH_SIZE, retries=1):
 
         self.path_root = Path(path_root)
