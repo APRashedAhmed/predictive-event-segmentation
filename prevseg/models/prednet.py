@@ -97,7 +97,8 @@ class PredCell(object):
 
 class PredNet(pl.LightningModule):
     name = 'prednet'
-    def __init__(self, hparams, ds=None, CellClass=PredCell):
+    def __init__(self, hparams=const.DEFAULT_HPARAMS, ds=None,
+                 CellClass=PredCell):
         super().__init__()
         # Attribute definitions
         self.hparams = hparams

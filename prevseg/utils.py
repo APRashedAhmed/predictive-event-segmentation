@@ -184,6 +184,35 @@ def flatten(inp_iter):
                 yield val
     return list(inner(inp_iter))
 
+def _attrs_and_names_in_module(mode, module, cls=None):
+    """Performs a check on the objects in a module and returns the object and
+    name if it passes the check.
+    
+    Parameters
+    ----------
+    mode : function
+    	Comparison function (ex isinstance, issubclass, etc.)
+    
+    module : Module
+    	Module name to be searched through.
+
+    Returns
+    -------
+    instances : list of tuples
+    	List if name, instance pairs
+    """
+    instances = []
+    all_instances = inspect.getmembers(module)
+    for name, obj in all_instances:
+        if cls is not None:
+            try:
+                if not mode(obj, cls):
+                    continue
+            except TypeError:
+                continue
+        instances.append((name, obj))
+    return instances
+
 def instances_and_names_in_module(module, cls=None):
     """Returns all instances of the passed class and their names.
     
@@ -198,17 +227,25 @@ def instances_and_names_in_module(module, cls=None):
     Returns
     -------
     instances : list of tuples
-    	List if name, instance pairs
+    	List of name, instance pairs
     """
-    instances = []
-    all_instances = inspect.getmembers(module)
-    for name, obj in all_instances:
-        if cls is not None:
-            try:
-                if not isinstance(obj, cls):
-                    continue
-            except TypeError:
-                continue
-        instances.append((name, obj))
-    return instances
+    return _attrs_and_names_in_module(isinstance, module, cls=cls)
+
+def subclasses_and_names_in_module(module, cls=None):
+    """Returns all subclasses of the inputed class.
+    
+    Parameters
+    ----------
+    module : Module
+    	Module name to be searched through.
+
+    cls : Class
+    	Class to check each object against
+
+    Returns
+    -------
+    subclasses : list of tuples
+    	List of name, subclasses pairs
+    """
+    return _attrs_and_names_in_module(issubclass, module, cls=cls)
 
