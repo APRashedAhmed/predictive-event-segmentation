@@ -299,11 +299,11 @@ class PredNet(pl.LightningModule):
                           sampler=self.val_sampler,
                           num_workers=self.hparams.n_workers)
 
-    def test_dataloader(self):
-        return DataLoader(self.ds, 
-                          batch_size=self.batch_size, 
-                          sampler=self.test_sampler,
-                          num_workers=self.hparams.n_workers)
+    # def test_dataloader(self):
+    #     return DataLoader(self.ds, 
+    #                       batch_size=self.batch_size, 
+    #                       sampler=self.test_sampler,
+    #                       num_workers=self.hparams.n_workers)
     
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
@@ -333,8 +333,8 @@ class PredNet(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         return self._common_step(batch, batch_idx, 'val')
 
-    def validation_step(self, batch, batch_idx):
-        return self._common_step(batch, batch_idx, 'test')
+    # def test_step(self, batch, batch_idx):
+    #     return self._common_step(batch, batch_idx, 'test')
 
     def validation_epoch_end(self, output):
         out_dict = {}
@@ -343,10 +343,10 @@ class PredNet(pl.LightningModule):
         out_dict['global_step'] = self.global_step
         return out_dict
 
-    def test_epoch_end(self, output):
-        out_dict = {}
-        out_dict['test_loss'] = np.mean([out['test_loss'].item()
-                                        for out in output])
-        out_dict['global_step'] = self.global_step
-        return out_dict
+    # def test_epoch_end(self, output):
+    #     out_dict = {}
+    #     out_dict['test_loss'] = np.mean([out['test_loss'].item()
+    #                                     for out in output])
+    #     out_dict['global_step'] = self.global_step
+    #     return out_dict
     

@@ -48,20 +48,20 @@ class _BreakfastClipsDataset(Dataset):
 class Breakfast64DimFVDataset(_BreakfastClipsDataset):
     def __init__(self, *args, **kwargs):
         # Data Paths
-        data_names_path = [index.PATH_64_FVS_EVENT_PATHS,
-                           index.PATH_64_FVS_NONEVENT_PATHS]
-        data_path = [index.PATH_64_FVS_EVENT_DATA,
-                     index.PATH_64_FVS_NONEVENT_DATA]
+        data_names_path = [index.PATH_BK_64_FVS_EVENT_PATHS,
+                           index.PATH_BK_64_FVS_NONEVENT_PATHS]
+        data_path = [index.PATH_BK_64_FVS_EVENT_DATA,
+                     index.PATH_BK_64_FVS_NONEVENT_DATA]
         super().__init__(data_names_path, data_path, *args, **kwargs)
 
 
 class BreakfastI3DFVDataset(_BreakfastClipsDataset):
     def __init__(self, *args, **kwargs):
         # Data Paths
-        data_names_path = [index.PATH_I3D_FVS_EVENT_PATHS,
-                           index.PATH_I3D_FVS_NONEVENT_PATHS]
-        data_path = [index.PATH_I3D_FVS_EVENT_DATA,
-                     index.PATH_I3D_FVS_NONEVENT_DATA]
+        data_names_path = [index.PATH_BK_I3D_FVS_EVENT_PATHS,
+                           index.PATH_BK_I3D_FVS_NONEVENT_PATHS]
+        data_path = [index.PATH_BK_I3D_FVS_EVENT_DATA,
+                     index.PATH_BK_I3D_FVS_NONEVENT_DATA]
         super().__init__(data_names_path, data_path, *args, **kwargs)
         
 
