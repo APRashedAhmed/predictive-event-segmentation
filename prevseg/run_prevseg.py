@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 from pprint import pprint
 
+import IPython
 import pytorch_lightning as pl
 
 from prevseg import index
@@ -13,9 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 if __name__ == '__main__':
-    
     parser = argparse.ArgumentParser()
-
     parser.add_argument('--n_layers', type=int, default=4)
     parser.add_argument('--input_size', type=int, default=2048)
     parser.add_argument('--time_steps', type=int, default=64)
@@ -28,6 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--output_mode', type=str, default='error')
     parser.add_argument('--n_val', type=int, default=256)
+    parser.add_argument('--n_test', type=int, default=2)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--seed', type=int, default=117)
     parser.add_argument('--batch_size', type=int, default=256)
@@ -40,6 +40,8 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_period', type=float, default=1.0)
     parser.add_argument('--val_check_interval', type=float, default=1.0)
     parser.add_argument('--save_top_k', type=float, default=5)
+    parser.add_argument('--gpus', type=float, default=1)
+    parser.add_argument('--layer_loss_mode', type=str, default='first')
     parser.add_argument('--mini', type=bool, default=False)
     
     # add all the available options to the trainer
@@ -86,10 +88,11 @@ if __name__ == '__main__':
         max_epochs=hparams.epochs,
         logger=logger,
         val_check_interval=hparams.val_check_interval,
+        gpus=hparams.gpus,
     )
 
     print(f'Running with following hparams:')
-    pprint(hparams)
+    pprint(vars(hparams))
 
     # Define the model
     model = Model(hparams)
@@ -102,4 +105,5 @@ if __name__ == '__main__':
     print('Beginning training')
     # Train the model
     trainer.fit(model)
-    
+
+    IPython.embed()
