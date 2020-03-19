@@ -163,8 +163,8 @@ class PredNet(pl.LightningModule):
             first[0][0] = 1
             return first
         elif mode == 'all':
-            return 1. / (self.n_layer-1) * torch.ones(self.n_layer, 1,
-                                                      device=self.device)
+            return 1. / (self.n_layers-1) * torch.ones(self.n_layers, 1,
+                                                       device=self.device)
         else:
             raise Exception(f'Invalid layer loss mode "{mode}".')
             
@@ -179,12 +179,9 @@ class PredNet(pl.LightningModule):
     
     def check_input_shape(self, input):
         batch_size, time_steps, *input_size = input.shape
-        
-        # Reset batch_size-dependent things
-        if batch_size != self.batch_size:
-            self.batch_size = batch_size
-            for cell in self.predcells:
-                cell.reset(self.batch_size)
+
+        for cell in self.predcells:
+            cell.reset(batch_size)
                 
         # Reset time_step-dependent things
         if time_steps != self.time_steps:
@@ -349,4 +346,160 @@ class PredNet(pl.LightningModule):
     #                                     for out in output])
     #     out_dict['global_step'] = self.global_step
     #     return out_dict
+
+class PredCellTracked(PredCell):
+    """Organizational class."""
+    def __init__(self, parent, layer_num, hparams, a_channels, r_channels,
+                 *args, **kwargs):
+        super().__init__(parent, layer_num, hparams, a_channels, r_channels,
+                         *args, **kwargs)
+        # Tracking
+        self.hidden_full_list = []
+        self.hidden_diff_list = []
+        self.error_full_list = []
+        self.error_diff_list = []
+        
+        self.previous_hidden = None
+        self.previous_error = None
+
+    def track_hidden(self, output_mode, R):
+        # Track hidden states if desired
+        if 'hidden_full' in self.parent.track and output_mode == 'eval':
+            self.hidden_full_list.append(R.permute(1, 0, 2))
+        if 'hidden_diff' in self.parent.track and output_mode == 'eval':
+            diff = torch.mean(
+                (R.permute(1, 0, 2) - self.R.permute(1, 0, 2))**2,
+                2).detach()
+            self.parent.logger.experiment.add_scalars(
+                f'test_hidden_diff_{self.parent.run_num}/layer_{self.layer_num}/',
+                {f'clip_{i}' : diff for i, diff in enumerate(diff)},
+                self.parent.t)
+            self.hidden_diff_list.append(diff)
+
+    def track_error(self, output_mode, E):
+        # Track hidden states if desired
+        if 'error_full' in self.parent.track and output_mode == 'eval':
+            self.error_full_list.append(E.permute(1, 0, 2))
+        if 'error_diff' in self.parent.track and output_mode == 'eval':
+            # print('E', E.shape, self.E.shape)
+            diff = torch.mean(
+                (E.permute(1, 0, 2) - self.E.permute(1, 0, 2))**2,
+                2).detach()
+            self.parent.logger.experiment.add_scalars(
+                f'test_error_diff_{self.parent.run_num}/layer_{self.layer_num}/',
+                {f'clip_{i}' : diff for i, diff in enumerate(diff)},
+                self.parent.t)
+            self.error_diff_list.append(diff)
+
+    def reset(self, *args, **kwargs):
+        self.hidden_full_list = []
+        self.hidden_diff_list = []
+        self.error_full_list = []
+        self.error_diff_list = []
+        return super().reset(*args, **kwargs)
+        
+            
+class PredNetTracked(PredNet):
+    name = 'prednet_tracked'
+    def __init__(self, hparams, track=None, CellClass=PredCellTracked, *args,
+                 **kwargs):
+        super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
+        self.track = track or ['hidden_diff', 'error_diff']
+        self.run_num = None
+        
+    def top_down_pass(self):
+        # Loop backwards
+        for l, cell in reversed(list(enumerate(self.predcells))):
+            # Convenience
+            E, R = cell.E, cell.R
+            
+            # First time step
+            if self.t == 0:
+                hx = (R, R)
+            else:
+                hx = cell.H
+
+            # If not in the last layer, upsample R and
+            if l < self.n_layers - 1:
+                E = torch.cat((E,  cell.upsample(self.predcells[l+1].R)), 2)
+
+            # Update the values of R and H
+            R, H = cell.recurrent(E, hx)
+
+            # Optional tracking
+            cell.track_hidden(self.output_mode, R)
+
+            # Update cell state
+            cell.R, cell.H = R, H
+            
+    def bottom_up_pass(self):
+        for cell in self.predcells:
+            # Go from R to A_hat
+            A_hat = cell.dense(cell.R)
+
+            # Convenience
+            if self.output_mode == 'prediction' and cell.layer_num == 0:
+                self.frame_prediction = A_hat
+
+            # Split to 2 Es
+            pos = F.relu(A_hat - self.A)
+            neg = F.relu(self.A - A_hat)
+            E = torch.cat([pos, neg], 2)
+            
+            # Optional Error tracking
+            cell.track_error(self.output_mode, E)
+
+            # Update cell error
+            cell.E = E
+
+            # If not last layer, update stored A
+            if cell.layer_num < self.n_layers - 1:
+                self.A = cell.update_a(E)
+            
+    def forward(self, input, output_mode=None, track=None, run_num=None):
+        self.run_num = run_num or self.run_num
+        self.output_mode = output_mode or self.output_mode
+        _, time_steps, *_ = self.check_input_shape(input)
+
+                
+        
+        self.total_error = []
+        
+        for self.t in range(time_steps):
+            self.A = input[:,self.t,:].unsqueeze(0).to(self.device, torch.float)
+            # Loop from top layer to update R and H
+            self.top_down_pass()
+            # Loop bottom up to get E and A
+            self.bottom_up_pass()
+            # Track desired outputs
+            self.track_outputs()
+        
+        return self.return_output()
+        
+    def track_outputs(self):
+        if self.output_mode == 'error':
+            mean_error = torch.cat(
+                [torch.mean(cell.E.view(cell.E.size(1), -1),
+                            1, keepdim=True)
+                 for cell in self.predcells], 1)
+            # batch x n_layers
+            self.total_error.append(mean_error)
+            
+    def return_output(self):
+        if self.output_mode == 'error':
+            return torch.stack(self.total_error, 2) # batch x n_layers x nt
+        elif self.output_mode == 'prediction':
+            return self.frame_prediction
+        elif self.output_mode == 'eval':
+            return self.eval_outputs()
+
+    def eval_outputs(self):
+        outputs = {}
+        for tracked in self.track:
+            # track_list = getattr(self.predcells[0], tracked+'_list')
+            # [print(t.shape) for t in track_list]
+            
+            outputs[tracked] = [torch.cat(getattr(cell, tracked+'_list'), 1)
+                                for cell in self.predcells]
+        return outputs
     
