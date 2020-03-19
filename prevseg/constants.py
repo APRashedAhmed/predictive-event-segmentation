@@ -24,8 +24,7 @@ DEFAULT_N_EPOCHS = 10
 DEFAULT_N_WORKERS = 4
 DEFAULT_LAYER_LOSS_MODE = 'first'
 
-from prevseg.dataloaders.breakfast import BreakfastI3DFVDataset
-DEFAULT_BK_DATALOADER = BreakfastI3DFVDataset
+DEFAULT_BK_DATALOADER = 'BreakfastI3DFVDataset'
 
 DEFAULT_HPARAMS = Namespace(**{
     'model_name' : DEFAULT_MODEL_NAME,
