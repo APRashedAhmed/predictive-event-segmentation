@@ -367,14 +367,16 @@ class PredCellTracked(PredCell):
         if 'hidden_full' in self.parent.track and output_mode == 'eval':
             self.hidden_full_list.append(R.permute(1, 0, 2))
         if 'hidden_diff' in self.parent.track and output_mode == 'eval':
-            diff = torch.mean(
+            diffs = torch.mean(
                 (R.permute(1, 0, 2) - self.R.permute(1, 0, 2))**2,
                 2).detach()
+            diff_dict = {f'{self.parent.tb_labels[i]}' : diff for i, diff in enumerate(diffs)}
+            scalar_name = f'test_hidden_diff_{self.parent.run_num}/layer_{self.layer_num}/'
             self.parent.logger.experiment.add_scalars(
-                f'test_hidden_diff_{self.parent.run_num}/layer_{self.layer_num}/',
-                {f'clip_{i}' : diff for i, diff in enumerate(diff)},
+                scalar_name,
+                dict(diff_dict),
                 self.parent.t)
-            self.hidden_diff_list.append(diff)
+            self.hidden_diff_list.append(diffs)
 
     def track_error(self, output_mode, E):
         # Track hidden states if desired
@@ -382,14 +384,20 @@ class PredCellTracked(PredCell):
             self.error_full_list.append(E.permute(1, 0, 2))
         if 'error_diff' in self.parent.track and output_mode == 'eval':
             # print('E', E.shape, self.E.shape)
-            diff = torch.mean(
+            diffs = torch.mean(
                 (E.permute(1, 0, 2) - self.E.permute(1, 0, 2))**2,
                 2).detach()
+            diff_dict = {f'{self.parent.tb_labels[i]}' : diff for i, diff in enumerate(diffs)}
+            scalar_name = f'test_error_diff_{self.parent.run_num}/layer_{self.layer_num}/'
             self.parent.logger.experiment.add_scalars(
-                f'test_error_diff_{self.parent.run_num}/layer_{self.layer_num}/',
-                {f'clip_{i}' : diff for i, diff in enumerate(diff)},
+                scalar_name,
+                dict(diff_dict),
                 self.parent.t)
-            self.error_diff_list.append(diff)
+            # self.parent.logger.experiment.add_scalars(
+            #     f'test_error_diff_{self.parent.run_num}/layer_{self.layer_num}/',
+            #     {f'{self.parent.tb_labels[i]}' for i, diff in enumerate(diffs)},
+            #     self.parent.t)
+            self.error_diff_list.append(diffs)
 
     def reset(self, *args, **kwargs):
         self.hidden_full_list = []
@@ -406,6 +414,7 @@ class PredNetTracked(PredNet):
         super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
         self.track = track or ['hidden_diff', 'error_diff']
         self.run_num = None
+        self.tb_labels = None
         
     def top_down_pass(self):
         # Loop backwards
@@ -456,12 +465,12 @@ class PredNetTracked(PredNet):
             if cell.layer_num < self.n_layers - 1:
                 self.A = cell.update_a(E)
             
-    def forward(self, input, output_mode=None, track=None, run_num=None):
+    def forward(self, input, output_mode=None, track=None, run_num=None,
+                tb_labels=None):
         self.run_num = run_num or self.run_num
+        self.tb_labels = tb_labels or self.tb_labels
         self.output_mode = output_mode or self.output_mode
         _, time_steps, *_ = self.check_input_shape(input)
-
-                
         
         self.total_error = []
         
