@@ -1,5 +1,6 @@
 import logging
 import argparse
+import socket
 from pathlib import Path
 from pprint import pprint
 
@@ -24,6 +25,7 @@ if __name__ == '__main__':
                         default=str(index.DIR_WEIGHTS))
     parser.add_argument('--dir_logs', type=str,
                         default=str(index.DIR_LOGS_TB))
+    parser.add_argument('--exp_name', type=str, default='')
     parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--output_mode', type=str, default='error')
     parser.add_argument('--n_val', type=int, default=256)
@@ -33,7 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--n_workers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--model', type=str, default='PredNet')
+    parser.add_argument('--model', type=str, default='PredNetTracked')
     parser.add_argument('--name', type=str, default='')
     parser.add_argument('--dataloader', type=str,
                         default='BreakfastI3DFVDataset')
@@ -43,6 +45,8 @@ if __name__ == '__main__':
     parser.add_argument('--gpus', type=float, default=1)
     parser.add_argument('--layer_loss_mode', type=str, default='first')
     parser.add_argument('--mini', type=bool, default=False)
+    parser.add_argument('--hostname', type=str, default='')
+    parser.add_argument('--ipython', type=bool, default=False)
     
     # add all the available options to the trainer
     # parser = pl.Trainer.add_argparse_args(parser)
@@ -61,8 +65,11 @@ if __name__ == '__main__':
     else:
         raise Exception(f'Invalid dataloader "{hparams.dataloader}" passed.')
 
+    # Get the hostname for book keeping
+    hparams.hostname = hparams.hostname or socket.gethostname()
+    
     # Tensorboard logger
-    log_dir = Path(hparams.dir_logs) / f'{hparams.name}'
+    log_dir = Path(hparams.dir_logs) / hparams.exp_name / f'{hparams.name}'
     if not log_dir.exists():
         log_dir.mkdir(parents=True)
     logger = pl.loggers.TensorBoardLogger(str(log_dir.parent),
@@ -106,4 +113,5 @@ if __name__ == '__main__':
     # Train the model
     trainer.fit(model)
 
-    IPython.embed()
+    if hparams.ipython:
+        IPython.embed()

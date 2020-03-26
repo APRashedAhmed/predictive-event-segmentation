@@ -158,15 +158,43 @@ class PredNet(pl.LightningModule):
         self.time_loss_weights = self.build_time_loss_weights()
         
     def build_layer_loss_weights(self, mode='first'):
-        if mode == 'first':
-            first = torch.zeros(self.n_layers, 1, device=self.device)
-            first[0][0] = 1
-            return first
-        elif mode == 'all':
-            return 1. / (self.n_layers-1) * torch.ones(self.n_layers, 1,
-                                                       device=self.device)
-        else:
-            raise Exception(f'Invalid layer loss mode "{mode}".')
+        if type(mode) is str:
+            if mode == 'first':
+                first = torch.zeros(self.n_layers, 1, device=self.device)
+                first[0][0] = 1
+                return first
+            elif mode == 'last':
+                last = torch.zeros(self.n_layers, 1, device=self.device)
+                last[-1][0] = 1
+                return last
+            elif mode == 'all':
+                return 1. / (self.n_layers-1) * torch.ones(self.n_layers, 1,
+                                                           device=self.device)
+            elif mode == 'tri':
+                return 1. / sum(range(1, self.n_layers + 1)) * torch.arange(
+                    self.n_layers + 1)
+            elif mode == 'exp2':
+                return 1. / sum([2**l for l in range(1, self.n_layers+1)]) * \
+                    torch.tensor([2**l for l in range(1, self.n_layers+1)])
+            elif mode == 'exp10':
+                return 1. / sum([10**l for l in range(1, self.n_layers+1)]) * \
+                    torch.tensor([10**l for l in range(1, self.n_layers+1)])
+            # elif mode == 'tri_zm':
+            #     out = 1. / sum(range(1, self.n_layers + 1)) * torch.arange(
+            #         self.n_layers + 1)
+            #     for i in range(1, self.n_layers):
+            #         out[i][0] = 0
+            #     return out
+            # elif mode == 'exp2_zm':
+            #     out = 1. / sum([2**l for l in range(1, self.n_layers+1)]) * \
+            #         torch.tensor([2**l for l in range(1, self.n_layers+1)])
+            # elif mode == 'exp10_zm':
+            #     out = 1. / sum([10**l for l in range(1, self.n_layers+1)]) * \
+            #         torch.tensor([10**l for l in range(1, self.n_layers+1)])
+            else:
+                raise Exception(f'Invalid layer loss mode "{mode}".')
+        elif isinstance(mode, torch.Tensor):
+            return mode
             
     def build_time_loss_weights(self, time_steps=None):
         time_steps = time_steps or self.time_steps
