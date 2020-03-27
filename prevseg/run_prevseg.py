@@ -1,3 +1,4 @@
+import datetime
 import logging
 import argparse
 import socket
@@ -98,6 +99,8 @@ if __name__ == '__main__':
         gpus=hparams.gpus,
     )
 
+    now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    print(f'Current time: {now}')
     print(f'Running with following hparams:')
     pprint(vars(hparams))
 

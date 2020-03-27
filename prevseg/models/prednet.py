@@ -171,14 +171,22 @@ class PredNet(pl.LightningModule):
                 return 1. / (self.n_layers-1) * torch.ones(self.n_layers, 1,
                                                            device=self.device)
             elif mode == 'tri':
-                return 1. / sum(range(1, self.n_layers + 1)) * torch.arange(
-                    self.n_layers + 1)
+                out = 1. / sum(range(1, self.n_layers + 1)) * torch.arange(
+                    1, self.n_layers + 1, device=self.device)
+                out = out.unsqueeze(-1)
+                return out
             elif mode == 'exp2':
-                return 1. / sum([2**l for l in range(1, self.n_layers+1)]) * \
-                    torch.tensor([2**l for l in range(1, self.n_layers+1)])
+                out = 1. / sum([2**l for l in range(1, self.n_layers+1)]) * \
+                    torch.tensor([2**l for l in range(1, self.n_layers+1)],
+                                 device=self.device)
+                out = out.unsqueeze(-1)
+                return out
             elif mode == 'exp10':
-                return 1. / sum([10**l for l in range(1, self.n_layers+1)]) * \
-                    torch.tensor([10**l for l in range(1, self.n_layers+1)])
+                out = 1. / sum([10**l for l in range(1, self.n_layers+1)]) * \
+                    torch.tensor([10**l for l in range(1, self.n_layers+1)],
+                                 device=self.device)
+                out = out.unsqueeze(-1)
+                return out
             # elif mode == 'tri_zm':
             #     out = 1. / sum(range(1, self.n_layers + 1)) * torch.arange(
             #         self.n_layers + 1)
