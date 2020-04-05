@@ -42,7 +42,7 @@ if __name__ == '__main__':
                         default='BreakfastI3DFVDataset')
     parser.add_argument('--checkpoint_period', type=float, default=1.0)
     parser.add_argument('--val_check_interval', type=float, default=1.0)
-    parser.add_argument('--save_top_k', type=float, default=5)
+    parser.add_argument('--save_top_k', type=float, default=1)
     parser.add_argument('--gpus', type=float, default=1)
     parser.add_argument('--layer_loss_mode', type=str, default='first')
     parser.add_argument('--mini', type=bool, default=False)
