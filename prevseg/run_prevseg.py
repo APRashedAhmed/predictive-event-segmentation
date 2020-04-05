@@ -48,6 +48,8 @@ if __name__ == '__main__':
     parser.add_argument('--mini', type=bool, default=False)
     parser.add_argument('--hostname', type=str, default='')
     parser.add_argument('--ipython', type=bool, default=False)
+    parser.add_argument('--half', type=bool, default=False)
+    parser.add_argument('--first', type=bool, default=False)
     
     # add all the available options to the trainer
     # parser = pl.Trainer.add_argparse_args(parser)
@@ -109,7 +111,7 @@ if __name__ == '__main__':
     print(model, flush=True)
 
     print('Loading data')
-    ds = Dataloader()
+    ds = Dataloader(half=hparams.half, first=hparams.first)
     model.ds = ds
     
     print('Beginning training')

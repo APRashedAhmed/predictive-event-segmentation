@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class _BreakfastClipsDataset(Dataset):
-    def __init__(self, data_names_path, data_path):
+    def __init__(self, data_names_path, data_path, half=False, first=True):
+        self.half = half
+        self.first = first
+        self.half_len = self.fv_len // 2
         # Data names path
         if not isiterable(data_names_path):
             data_names_path = [data_names_path]
@@ -38,11 +41,22 @@ class _BreakfastClipsDataset(Dataset):
         self.data = np.concatenate(
             [np.load(path) for path in self.data_path])
 
+        # Set getitem depending on we want the data
+        if self.half and self.first:
+            self._getitem = lambda idx : (self.data[idx, :, self.half_len:],
+                                          str(self.paths[idx]))
+        elif self.half and not self.first:
+            self._getitem = lambda idx : (self.data[idx, :, :self.half_len],
+                                          str(self.paths[idx]))
+        else:
+            self._getitem = lambda idx : (self.data[idx, :, :],
+                                          str(self.paths[idx]))
+
     def __len__(self):
         return len(self.paths)
 
     def __getitem__(self, idx):
-        return self.data[idx, :, :], str(self.paths[idx])
+        return self._getitem(idx)
     
 
 class Breakfast64DimFVDataset(_BreakfastClipsDataset):
@@ -52,6 +66,7 @@ class Breakfast64DimFVDataset(_BreakfastClipsDataset):
                            index.PATH_BK_64_FVS_NONEVENT_PATHS]
         data_path = [index.PATH_BK_64_FVS_EVENT_DATA,
                      index.PATH_BK_64_FVS_NONEVENT_DATA]
+        self.fv_len = 64
         super().__init__(data_names_path, data_path, *args, **kwargs)
 
 
@@ -62,6 +77,7 @@ class BreakfastI3DFVDataset(_BreakfastClipsDataset):
                            index.PATH_BK_I3D_FVS_NONEVENT_PATHS]
         data_path = [index.PATH_BK_I3D_FVS_EVENT_DATA,
                      index.PATH_BK_I3D_FVS_NONEVENT_DATA]
+        self.fv_len = 2048
         super().__init__(data_names_path, data_path, *args, **kwargs)
         
 
