@@ -5,16 +5,15 @@ import networkx as nx
 
 logger = logging.getLogger(__name__)
 
-def schapiro_pentagon(label='A', weight=1):
+def schapiro_pentagon(offset=0, weight=1):
     """Creates a pentagon of nodes and edges like in the paper.
 
-    Nodes have a common label a unique number from 0 to 4. Nodes zero and four
-    are the "border" nodes, and have one less edge than the rest.
-
+    Nodes are numbered from ``offset*5`` to ``offset*5 + 5``.
+    
     Parameters
     ----------
-    label : str (optional)
-    	Label to assign the collection nodes
+    offset : int (optional)
+    	Offset to start the numbering of the nodes
 
     weight : int (optional)
     	Weight of edges.
@@ -25,7 +24,7 @@ def schapiro_pentagon(label='A', weight=1):
     	Graph that contains the nodes and edges for the pentagon
     """
     G = nx.Graph()
-    G.add_nodes_from(zip([label]*5, range(5)))
+    G.add_nodes_from(range(offset, offset+5))
 
     nodes_list = list(G.nodes)
     border_nodes = [nodes_list[0], nodes_list[-1]]
@@ -36,16 +35,15 @@ def schapiro_pentagon(label='A', weight=1):
             G.add_edge(node_1, node_2, weight=weight)
     return G
 
-def schapiro_graph(labels='ABC', weight=1):
+def schapiro_graph(n_pentagons=3, weight=1):
     """Creates the full schapiro graph that is a collection of pentagon nodes.
 
-    Each community receives a unique label, and is connected to neighboring
-    communities.
+    Nodes are numberd in groups of five from ``0`` to ``n_pentagons * 5``.
 
     Parameters
     ----------
-    labels : str (optional)
-    	Labels to assign each community
+    n_pentagons : int (optional)
+    	Number of pentagons to include in the graph
 
     weight : int (optional)
     	Weight of edges.
@@ -58,14 +56,12 @@ def schapiro_graph(labels='ABC', weight=1):
     G = nx.Graph()
 
     # Add each community to the full graph
-    for label in labels:
-        pentagon = graph_pentagon(label)
-        G.add_nodes_from(pentagon)
-        G.add_edges_from(pentagon.edges, weight=weight)
+    pents = [schapiro_pentagon(offset=i*5) for i in range(n_pents)]
+    [G.add_edges_from(pent.edges, weight=weight) for pent in pents]
 
     # Connect each community together
-    for i, label in enumerate(labels[:-1]):
-        G.add_edge((label,4), (labels[i+1],0), weight=weight)
-        G.add_edge((label,0), (labels[i-1],4), weight=weight)
+    for i in range(n_pents-1):
+        G.add_edge(list(pents[i])[0], list(pents[i-1])[-1], weight=weight)
+        G.add_edge(list(pents[i])[4], list(pents[i+1])[0], weight=weight)
 
     return G
