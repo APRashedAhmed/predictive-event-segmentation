@@ -3,7 +3,10 @@ from argparse import Namespace
 
 from prevseg import index
 
+# General constants
 DEFAULT_SEED = 117
+IMAGENET_NORM_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_NORM_STD = (0.229, 0.224, 0.225)
 
 # Breakfast video info
 DIM_H = 240
