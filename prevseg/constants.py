@@ -3,7 +3,9 @@ from argparse import Namespace
 
 from prevseg import index
 
-# Video info
+DEFAULT_SEED = 117
+
+# Breakfast video info
 DIM_H = 240
 DIM_W = 320
 DIM_C = 3
@@ -18,7 +20,6 @@ DEFAULT_OUTPUT_MODE = 'error'
 DEFAULT_DEVICE = 'cuda'
 DEFAULT_N_TEST = 16
 DEFAULT_N_VAL = 256
-DEFAULT_SEED = 117
 DEFAULT_BATCH_SIZE = 256
 DEFAULT_N_EPOCHS = 10
 DEFAULT_N_WORKERS = 4

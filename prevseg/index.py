@@ -36,6 +36,15 @@ DIR_CHECKPOINTS = DIR_MODELS_SL / 'checkpoints'
 # To delineate data-specific indices from defaults
 _data_prefixes = []
 
+# SCHAPIRO
+_data_prefixes.append('_SCH') # Add the schapiro prefix
+
+# Top level Schapiro data dir
+DIR_SCH = DIR_DATA_EXT / 'schapiro'
+DIR_SCH_FRACTALS = DIR_SCH / 'abstract_discs'
+
+# BREAKFAST
+
 # Breakfast directories
 _data_prefixes.append('_BK') # Add the breakfast prefix
 

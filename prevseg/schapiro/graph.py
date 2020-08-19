@@ -56,11 +56,11 @@ def schapiro_graph(n_pentagons=3, weight=1):
     G = nx.Graph()
 
     # Add each community to the full graph
-    pents = [schapiro_pentagon(offset=i*5) for i in range(n_pents)]
+    pents = [schapiro_pentagon(offset=i*5) for i in range(n_pentagons)]
     [G.add_edges_from(pent.edges, weight=weight) for pent in pents]
 
     # Connect each community together
-    for i in range(n_pents-1):
+    for i in range(n_pentagons-1):
         G.add_edge(list(pents[i])[0], list(pents[i-1])[-1], weight=weight)
         G.add_edge(list(pents[i])[4], list(pents[i+1])[0], weight=weight)
 
