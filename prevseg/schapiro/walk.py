@@ -59,7 +59,7 @@ def walk_random(G, source=None, steps=None):
         if isinstance(steps, (int, float)):
             steps -= 1
 
-def walk_euclid(G, source=None):
+def walk_euclidean(G, source=None):
     """Iterator that yields the start and final position after each step on a
     euclidean walk (visit every edge once).
 

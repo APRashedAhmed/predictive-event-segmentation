@@ -375,7 +375,6 @@ class PredNet(pl.LightningModule):
         out_dict = {}
         out_dict['val_loss'] = torch.as_tensor(np.mean([out['val_loss'].item()
                                                         for out in output]))
-        print(type(out_dict['val_loss']))
         out_dict['global_step'] = self.global_step
         return out_dict
 
