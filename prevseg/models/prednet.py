@@ -373,8 +373,9 @@ class PredNet(pl.LightningModule):
 
     def validation_epoch_end(self, output):
         out_dict = {}
-        out_dict['val_loss'] = np.mean([out['val_loss'].item()
-                                        for out in output])
+        out_dict['val_loss'] = torch.as_tensor(np.mean([out['val_loss'].item()
+                                                        for out in output]))
+        print(type(out_dict['val_loss']))
         out_dict['global_step'] = self.global_step
         return out_dict
 
