@@ -110,13 +110,15 @@ class PredNet(pl.LightningModule):
         self.layer_loss_mode = self.hparams.layer_loss_mode
         self.ds = ds
         self.CellClass = CellClass
+
+        self.dev = 'cuda:0'
         
-        if self.hparams.device == 'cuda' and torch.cuda.is_available():
-            print('Using GPU', flush=True)
-            self.device = torch.device('cuda')
-        else:
-            print('Using CPU', flush=True)
-            self.device = torch.device('cpu')
+        # if self.hparams.device == 'cuda' and torch.cuda.is_available():
+        #     print('Using GPU', flush=True)
+        #     self.dev = 'cuda:0'
+        # else:
+        #     print('Using CPU', flush=True)
+        #     self.dev = torch.device('cpu')
 
         # Put together the model
         self.build_model()
@@ -154,37 +156,37 @@ class PredNet(pl.LightningModule):
         # 1 followed by zeros means just minimize error at lowest layer
         self.layer_loss_weights = self.build_layer_loss_weights(
             self.layer_loss_mode)
-        # How much to weight errors at each timestep
+        # How much to weight errors at each timezstep
         self.time_loss_weights = self.build_time_loss_weights()
         
     def build_layer_loss_weights(self, mode='first'):
         if type(mode) is str:
             if mode == 'first':
-                first = torch.zeros(self.n_layers, 1, device=self.device)
+                first = torch.zeros(self.n_layers, 1, device=self.dev)
                 first[0][0] = 1
                 return first
             elif mode == 'last':
-                last = torch.zeros(self.n_layers, 1, device=self.device)
+                last = torch.zeros(self.n_layers, 1, device=self.dev)
                 last[-1][0] = 1
                 return last
             elif mode == 'all':
                 return 1. / (self.n_layers-1) * torch.ones(self.n_layers, 1,
-                                                           device=self.device)
+                                                           device=self.dev)
             elif mode == 'tri':
                 out = 1. / sum(range(1, self.n_layers + 1)) * torch.arange(
-                    1, self.n_layers + 1, device=self.device)
+                    1, self.n_layers + 1, device=self.dev)
                 out = out.unsqueeze(-1)
                 return out
             elif mode == 'exp2':
                 out = 1. / sum([2**l for l in range(1, self.n_layers+1)]) * \
                     torch.tensor([2**l for l in range(1, self.n_layers+1)],
-                                 device=self.device)
+                                 device=self.dev)
                 out = out.unsqueeze(-1)
                 return out
             elif mode == 'exp10':
                 out = 1. / sum([10**l for l in range(1, self.n_layers+1)]) * \
                     torch.tensor([10**l for l in range(1, self.n_layers+1)],
-                                 device=self.device)
+                                 device=self.dev)
                 out = out.unsqueeze(-1)
                 return out
             # elif mode == 'tri_zm':
@@ -208,7 +210,7 @@ class PredNet(pl.LightningModule):
         time_steps = time_steps or self.time_steps
         # How much to weight errors at each timestep
         time_loss_weights = 1. / (time_steps-1) * torch.ones(time_steps, 1,
-                                                             device=self.device)
+                                                             device=self.dev)
         # Dont count first time step
         time_loss_weights[0] = 0
         return time_loss_weights
@@ -268,7 +270,7 @@ class PredNet(pl.LightningModule):
         total_error = []
 
         for t in range(time_steps):
-            self.A = input[:,t,:].unsqueeze(0).to(self.device, torch.float)
+            self.A = input[:,t,:].unsqueeze(0).to(self.dev, torch.float)
             
             # Loop from top layer to update R and H
             self.top_down_pass(t)
@@ -511,7 +513,7 @@ class PredNetTracked(PredNet):
         self.total_error = []
         
         for self.t in range(time_steps):
-            self.A = input[:,self.t,:].unsqueeze(0).to(self.device, torch.float)
+            self.A = input[:,self.t,:].unsqueeze(0).to(self.dev, torch.float)
             # Loop from top layer to update R and H
             self.top_down_pass()
             # Loop bottom up to get E and A
