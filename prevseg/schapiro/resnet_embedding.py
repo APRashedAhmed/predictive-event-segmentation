@@ -12,6 +12,8 @@ from torch.autograd import Variable
 import prevseg.constants as const
 import prevseg.index as index
 
+logger = logging.getLogger(__name__)
+
 def main():
     EMBED_SHAPE = (224,224)
     

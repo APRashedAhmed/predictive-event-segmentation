@@ -6,6 +6,8 @@ from PIL import Image, ImageOps
 
 import prevseg.index as index
 
+logger = logging.getLogger(__name__)
+
 def main():
     # Borrowing some code from ``prevseg/schapiro/resnet_embedding.py``
 
