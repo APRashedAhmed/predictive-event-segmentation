@@ -6,27 +6,32 @@ documentation on what versions of packages to use, and while I have, at some
 point in the past gotten it to work, I wasn't successful this (08/24/2020) time.
 So I created this note to keep track of what I try.
 
-## Successful Conda Install:
+## Notes 2020-08-28
 
-```
-# conda install --name tensorflow1 --file conda-requirements.txt
-tensorflow-gpu>=1.13.1,<2.0
-Keras>=2.2.4
-requests
-beautifulsoup4 # bs4 when installing using pip
-imageio
-scipy>=1.2.0
-pillow
-matplotlib
-# hickle
-pytest
-# conda does not install jupyterlab correctly; it fails to launch with ImportError: cannot import name 'ensure_dir_exists' ModuleNotFoundError: No module named 'jupyter_server'
-```
+Below are the most recent install instructions to get the env fully running:
 
-And then install `hickle` using `pip`:
+Clone both the `prednet` and `predictive-event-segmentation` repos. Then in
+`prednet`, create the initial env using the `requirements.txt` file:
 
-	$ pip install hickle==2.1.0
+	$ conda create -n pn --file requirements.txt
 
+Next install `hickle` and `networkx`:
+
+	$ pip install hickle==2.1.0 networkx
+	
+Now install `jupyterlab`:
+
+	$ conda install jupyterlab -c conda-forge
+	
+Add in all the development packages from `predictive-event-segmentation`:
+
+	$ conda install --file dev-requirements.txt -c conda-forge
+	
+Finally, make both repos importable by running:
+
+	$ python setup.py develop
+	
+in both `prednet` and `predictive-event-segmentation`.
 
 ## Notes 2020-08-25
 
@@ -107,6 +112,28 @@ And then updating the `elif`  below it to `if`.
 
 These changes (yesterday's included) seemed to result in a successful run of 
 `kitti_evaluate.py`.
+
+### Successful Conda Install:
+
+```
+# conda install --name tensorflow1 --file conda-requirements.txt
+tensorflow-gpu>=1.13.1,<2.0
+Keras>=2.2.4
+requests
+beautifulsoup4 # bs4 when installing using pip
+imageio
+scipy>=1.2.0
+pillow
+matplotlib
+# hickle
+pytest
+# conda does not install jupyterlab correctly; it fails to launch with ImportError: cannot import name 'ensure_dir_exists' ModuleNotFoundError: No module named 'jupyter_server'
+```
+
+And then install `hickle` using `pip`:
+
+	$ pip install hickle==2.1.0
+
 
 ## Notes 2020-08-24
 
