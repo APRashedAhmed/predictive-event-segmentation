@@ -1,4 +1,4 @@
-# Running the CoxLab PredNet
+# 1.0 Running the CoxLab PredNet
 
 Turns out running PredNet is much harder than you'd think. The 
 [public facing repo](https://github.com/coxlab/prednet) has conflicting 
