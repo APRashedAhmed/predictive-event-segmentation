@@ -6,7 +6,7 @@ documentation on what versions of packages to use, and while I have, at some
 point in the past gotten it to work, I wasn't successful this (08/24/2020) time.
 So I created this note to keep track of what I try.
 
-## Notes 2020-08-28
+## Environment Creation
 
 Below are the most recent install instructions to get the env fully running:
 
@@ -33,7 +33,9 @@ Finally, make both repos importable by running:
 	
 in both `prednet` and `predictive-event-segmentation`.
 
-## Notes 2020-08-25
+## Notes
+
+### Notes 2020-08-25
 
 Rather than running the code in the updated branch, I opted to try running the
 public code using the branch-defined env. Initial error was:
@@ -113,7 +115,7 @@ And then updating the `elif`  below it to `if`.
 These changes (yesterday's included) seemed to result in a successful run of 
 `kitti_evaluate.py`.
 
-### Successful Conda Install:
+#### Successful Conda Install:
 
 ```
 # conda install --name tensorflow1 --file conda-requirements.txt
@@ -135,7 +137,7 @@ And then install `hickle` using `pip`:
 	$ pip install hickle==2.1.0
 
 
-## Notes 2020-08-24
+### Notes 2020-08-24
 
 There is a [pull request](https://github.com/coxlab/prednet/pull/64) that seems
 to make things a lot better. However, it seems to deprecate several scripts:
