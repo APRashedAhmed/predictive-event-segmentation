@@ -38,6 +38,7 @@ class ShapiroFractalsDataset(IterableDataset):
             self.sample_transform = lambda sample : sample
         else:
             self.sample_transform = lambda sample : self.array_data[sample]
+        super().__init__(self)
         
     def load_node_stimuli(self):
         # Load the fractal images into memory
@@ -60,17 +61,21 @@ class ShapiroFractalsDataset(IterableDataset):
             iter_walk = walk.walk_euclidean(self.G)
         elif self.mode == 'hamiltonian':
             iter_walk = walk.walk_hamiltonian(self.G)
-        
+
         for sample in iter_walk:
-            yield self.sample_transform(sample[0])
+            yield self.array_data[sample[0]], sample[0]
         
     def iter_batch_sample(self):
-        yield from zip(*[self.iter_single_sample()
-                         for _ in range(self.batch_size)])
+        iter_batch = zip(*[self.iter_single_sample()
+                           for _ in range(self.batch_size)])
+        for batch in iter_batch:
+            data, nodes = zip(*batch)
+            yield data, nodes
         
-    def iter_batch_dataset(self):       
+    def iter_batch_dataset(self):   
         for _ in range(self.n_paths):
-            yield np.moveaxis(np.array(list(self.iter_batch_sample())), 0, 1)
+            data, nodes = zip(*list(self.iter_batch_sample()))
+            yield np.moveaxis(np.array(data), 0, 1), nodes
         
     def __iter__(self):
         return self.iter_batch_dataset()
@@ -90,3 +95,4 @@ class ShapiroResnetEmbeddingDataset(ShapiroFractalsDataset):
         self.array_data = np.array(
             [np.array(np.load(str(path)))
              for path in self.paths_data])    
+
