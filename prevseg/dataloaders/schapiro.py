@@ -38,7 +38,7 @@ class ShapiroFractalsDataset(IterableDataset):
             self.sample_transform = lambda sample : sample
         else:
             self.sample_transform = lambda sample : self.array_data[sample]
-        super().__init__(self)
+        super().__init__()
         
     def load_node_stimuli(self):
         # Load the fractal images into memory
