@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 
 import prevseg.constants as const
+import prevseg.dataloaders.breakfast as bk
+import prevseg.dataloaders.schapiro as sch
 from prevseg.torch.lstm import LSTM
 from prevseg.torch.activations import SatLU
 
@@ -312,7 +314,7 @@ class PredNet(pl.LightningModule):
         if self.ds is None:
             print('Loading the i3d data from disk. This can take '
                   'several minutes...', flush=True)
-        self.ds = self.ds or BreakfastI3DFVDataset()
+        self.ds = self.ds or bk.BreakfastI3DFVDataset()
         self.ds_length = len(self.ds)
         
         n_test, n_val = self.hparams.n_test, self.hparams.n_val
@@ -550,3 +552,27 @@ class PredNetTracked(PredNet):
                                 for cell in self.predcells]
         return outputs
     
+
+class PredNetTrackedSchapiro(PredNetTracked):
+    def prepare_data(self):
+        self.ds = self.ds or sch.ShapiroResnetEmbeddingDataset(
+            batch_size=self.batch_size, 
+            n_pentagons=self.hparams.n_pentagons, 
+            max_steps=self.hparams.max_steps, 
+            n_paths=self.hparams.n_paths)
+        self.ds_val = sch.ShapiroResnetEmbeddingDataset(
+            batch_size=self.batch_size, 
+            n_pentagons=self.hparams.n_pentagons,
+            n_paths=1,
+            mapping=self.ds.mapping,
+            mode='euclidean')
+                
+    def train_dataloader(self):
+        return DataLoader(self.ds, 
+                          batch_size=None,
+                          num_workers=self.hparams.n_workers)
+    
+    def val_dataloader(self):
+        return DataLoader(self.ds_val, 
+                          batch_size=None,
+                          num_workers=self.hparams.n_workers)
