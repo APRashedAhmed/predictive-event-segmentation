@@ -46,22 +46,12 @@ class LSTM(nn.Module):
     def forward(self, x, hidden):
         do_dropout = self.training and self.dropout > 0.0
         h, c = hidden
-        # print(x.shape)
         h = h.view(h.size(1), -1)
         c = c.view(c.size(1), -1)
         x = x.view(x.size(1), -1)
 
         # Linear mappings
-        # print('x', x.shape, 'h', h.shape)
-
-        _preact1 = self.i2h(x)
-        # print('p1', _preact1.shape)
-        _preact2 = self.h2h(h)
-        # print('p2', _preact2.shape)
-        preact = _preact1 + _preact2
-        
-        
-        # preact = self.i2h(x) + self.h2h(h)
+        preact = self.i2h(x) + self.h2h(h)
 
         # activations
         gates = preact[:, :3 * self.hidden_size].sigmoid()
@@ -93,5 +83,4 @@ class LSTM(nn.Module):
         h_t = h_t.view(1, h_t.size(0), -1)
         c_t = c_t.view(1, c_t.size(0), -1)
 
-        # print('H_t', h_t.shape, 'C_t', c_t.shape)
         return h_t, (h_t, c_t)

@@ -82,19 +82,19 @@ class PredCell(object):
         self.E = torch.zeros(1,                  # Single time step
                              batch_size,
                              2*self.a_channels[self.layer_num],
-                             device=self.parent.device)
+                             device=self.parent.dev)
         self.R = torch.zeros(1,                  # Single time step
                              batch_size,
                              self.r_channels[self.layer_num],
-                             device=self.parent.device)
+                             device=self.parent.dev)
         self.H = (torch.zeros(1,                  # Single time step
                               batch_size,
                               self.r_channels[self.layer_num],
-                              device=self.parent.device),
+                              device=self.parent.dev),
                   torch.zeros(1,                  # Single time step
                               batch_size,
                               self.r_channels[self.layer_num],
-                              device=self.parent.device))
+                              device=self.parent.dev))
         
     def update_parent(self, module_names=('recurrent', 'dense', 'update_a')):
         # Hack to appease the pytorch-gods
@@ -104,8 +104,8 @@ class PredCell(object):
                 setattr(self.parent,
                         f'{self.name}_{self.layer_num}_{module_name}',
                         getattr(self, module_name))
-                
 
+                
 class PredNet(pl.LightningModule):
     name = 'prednet'
     def __init__(self, hparams=const.DEFAULT_HPARAMS, ds=None, a_channels=None,
