@@ -6,3 +6,4 @@ versioneer
 watermark
 pyyaml
 coloredlogs
+ipdb
