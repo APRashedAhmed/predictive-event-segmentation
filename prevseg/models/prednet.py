@@ -87,7 +87,14 @@ class PredCell(object):
                              batch_size,
                              self.r_channels[self.layer_num],
                              device=self.parent.device)
-        self.H = None
+        self.H = (torch.zeros(1,                  # Single time step
+                              batch_size,
+                              self.r_channels[self.layer_num],
+                              device=self.parent.device),
+                  torch.zeros(1,                  # Single time step
+                              batch_size,
+                              self.r_channels[self.layer_num],
+                              device=self.parent.device))
         
     def update_parent(self, module_names=('recurrent', 'dense', 'update_a')):
         # Hack to appease the pytorch-gods
@@ -571,6 +578,7 @@ class PredNetTracked(PredNet):
     
 
 class PredNetTrackedSchapiro(PredNetTracked):
+    name = 'prednet_tracked_schapiro'
     def prepare_data(self):
         self.ds = self.ds or sch.ShapiroResnetEmbeddingDataset(
             batch_size=self.batch_size, 
