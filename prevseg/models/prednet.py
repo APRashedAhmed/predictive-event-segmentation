@@ -15,7 +15,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 import prevseg.constants as const
 import prevseg.dataloaders.breakfast as bk
 import prevseg.dataloaders.schapiro as sch
-from prevseg.torch.lstm import LSTM
+from prevseg.torch.lstm_cell import LSTM
 from prevseg.torch.activations import SatLU
 
 logger = logging.getLogger(__name__)
