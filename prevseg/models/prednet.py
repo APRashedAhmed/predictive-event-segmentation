@@ -6,6 +6,7 @@ from functools import wraps
 import torch
 import torch.nn as nn
 import numpy as np
+import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 from torch.nn import functional as F, GRU
 from torch.autograd import Variable
@@ -134,7 +135,7 @@ class PredNet(pl.LightningModule):
         #     self.dev = torch.device('cpu')
 
         # Put together the model
-        self.build_model()
+        self.build_model()                
         
     @staticmethod
     def set_seed(seed):
@@ -357,8 +358,8 @@ class PredNet(pl.LightningModule):
         else:
             prefix = mode + '_'
             
-        self.logger.experiment.add_scalar(f'{prefix}loss', 
-                                          errors, self.global_step)
+        self.logger.experiment.log_metric(f'{prefix}loss', 
+                                          errors)
         return {f'{prefix}loss' : errors}
     
     def training_step(self, batch, batch_idx):
@@ -411,10 +412,10 @@ class PredCellTracked(PredCell):
                          for i, diff in enumerate(diffs)}
             scalar_name = f'test_representation_diff_{self.parent.run_num}/' \
                 'layer_{self.layer_num}/'
-            self.parent.logger.experiment.add_scalars(
-                scalar_name,
-                dict(diff_dict),
-                self.parent.t)
+            # self.parent.logger.experiment.log_metrics(
+            #     scalar_name,
+            #     dict(diff_dict),
+            #     self.parent.t)
             self.representation_diff_list.append(diffs)
 
     def track_hidden(self, output_mode, H):
@@ -429,10 +430,10 @@ class PredCellTracked(PredCell):
                          for i, diff in enumerate(diffs)}
             scalar_name = f'test_hidden_diff_{self.parent.run_num}/' \
                 'layer_{self.layer_num}/'
-            self.parent.logger.experiment.add_scalars(
-                scalar_name,
-                dict(diff_dict),
-                self.parent.t)
+            # self.parent.logger.experiment.log_metrics(
+            #     scalar_name,
+            #     dict(diff_dict),
+            #     self.parent.t)
             self.hidden_diff_list.append(diffs)
 
     def track_error(self, output_mode, E):
@@ -448,10 +449,10 @@ class PredCellTracked(PredCell):
                          for i, diff in enumerate(diffs)}
             scalar_name = f'test_error_diff_{self.parent.run_num}/' \
                 'layer_{self.layer_num}/'
-            self.parent.logger.experiment.add_scalars(
-                scalar_name,
-                dict(diff_dict),
-                self.parent.t)
+            # self.parent.logger.experiment.add_scalars(
+            #     scalar_name,
+            #     dict(diff_dict),
+            #     self.parent.t)
             # self.parent.logger.experiment.add_scalars(
             #     f'test_error_diff_{self.parent.run_num}/layer_{self.layer_num}/',
             #     {f'{self.parent.tb_labels[i]}' for i, diff in enumerate(diffs)},
@@ -575,7 +576,51 @@ class PredNetTracked(PredNet):
             outputs[tracked] = [torch.cat(getattr(cell, tracked+'_list'), 1)
                                 for cell in self.cells]
         return outputs
+
+    def _visualize(self, data, vlines=None, offset=0):
+        fig = plt.figure()
+        ax_large = fig.add_subplot(111)
+
+        len_data = len(data)
+        for i, layer_data in enumerate(data):
+            ax = fig.add_subplot(11 + i + len_data*100)[offset:]
+            ax.plot(layer_data)
+            ax.set_ylabel(f'Layer {i+1}')
+            if vlines is not None:
+                [ax.axes.axvline(v, ls=':') for v in vlines]
+            if i == len_data-1:
+                ax.set_xlabel('Step')
+
+        ax_large.axes.xaxis.set_ticks([])
+        ax_large.axes.yaxis.set_ticks([])
+        gcf = plt.gcf()
+        gcf.set_size_inches(16, 9)
+        return fig
+
+    def visualize_errors(self, test_data, borders=None):
+        outs_pe = self.forward(test_data,
+                               output_mode='error',
+                               run_num='fwd_rev', 
+                               tb_labels=['nodes'])
+        outs_array = outs_pe[0,:,:].cpu().detach().numpy()
+        return self._visualize(outs_array, vlines=borders)
+        
+    def visualize_diffs(self, test_data, borders=None):
+        outs = self.forward(test_data,
+                            output_mode='eval',
+                            run_num='fwd_rev', 
+                            tb_labels=['nodes'])
+        figs = []
+        for diff in self.track:
+            offset = 0 if 'error' in track else 1
+            figs.append(self._visualize(test_data[diff],
+                                  vlines=borders,
+                                  offset=offset))
+        return figs
     
+    def visualize(self, *args, **kwargs):
+        return self.visualize_diffs(*args, **kwargs) + \
+            [self.visualize_errors(*args, **kwargs)]
 
 class PredNetTrackedSchapiro(PredNetTracked):
     name = 'prednet_tracked_schapiro'

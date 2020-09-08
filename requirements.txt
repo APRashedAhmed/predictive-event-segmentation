@@ -1,11 +1,10 @@
-click
-awscli
-flake8
-numpy
-pandas
-jupyter
-pyyaml
-coloredlogs
+jupyterlab
 matplotlib
 watermark
-tqdm
+hydra
+omegaconf
+neptune-client
+# See this page for neptune-notebooks
+# https://docs.neptune.ai/getting-started/installation/installation-notebooks.html
+neptune-notebooks
+psutil
