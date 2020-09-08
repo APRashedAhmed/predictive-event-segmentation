@@ -470,9 +470,9 @@ class PredCellTracked(PredCell):
             
 class PredNetTracked(PredNet):
     name = 'prednet_tracked'
-    def __init__(self, hparams, track=None, CellClass=PredCellTracked, *args,
+    def __init__(self, track=None, CellClass=PredCellTracked, *args,
                  **kwargs):
-        super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
+        super().__init__(CellClass=CellClass, *args, **kwargs)
         self.track = track or ['hidden_diff',
                                'error_diff',
                                'representation_diff']

@@ -17,8 +17,11 @@ DIR_DATA_RAW = DIR_DATA / 'raw'
 DIR_LOGS = DIR_REPO / 'logs'
 DIR_LOGS_TB = DIR_LOGS / 'tensorboard'
 
-# Path to the symbolically linked notebook and report directories
+# Path to the symbolically linked notebook directory
 DIR_WBS_SL = DIR_REPO / 'workbooks'
+
+# Path to the symbolically linked notes directory
+DIR_NOTES_SL = DIR_REPO / 'notes'
 
 # Path to the models and checkpoint direcotories
 DIR_MODELS_SL = DIR_REPO / 'models'
@@ -28,6 +31,7 @@ DIR_DOCS = DIR_REPO / 'docs'
 DIR_DOCS_SRC = DIR_DOCS / 'source'
 DIR_WBS = DIR_DOCS_SRC / 'workbooks'
 DIR_IMGS = DIR_DOCS_SRC / 'images'
+DIR_NOTES = DIR_DOCS_SRC / 'notes'
 
 # Path to the models and checkpoint direcotories
 DIR_WEIGHTS = DIR_MODELS_SL / 'weights'

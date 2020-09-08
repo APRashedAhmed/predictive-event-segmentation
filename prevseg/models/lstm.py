@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 
 import prevseg.models.prednet as pn
+import prevseg.constants as const
 from prevseg.torch.activations import SatLU
 
 logger = logging.getLogger(__name__)
@@ -52,12 +53,12 @@ class LSTMCell(pn.PredCellTracked):
 
 class LSTMStacked(pn.PredNetTrackedSchapiro):
     name = 'lstmstacked'
-    def __init__(self, hparams, CellClass=LSTMCell, a_channels=None,
-                 r_channels=None, *args, **kwargs):
+    def __init__(self, hparams=const.DEFAULT_HPARAMS, CellClass=LSTMCell,
+                 a_channels=None, r_channels=None, *args, **kwargs):
         if not isinstance(hparams, Namespace):
             hparams = Namespace(**hparams)
         # Assertions for how it should be used
-        assert hparams.layer_loss_mode is None
+        hparams.layer_loss_mode = None
         
         if a_channels is None:
             a_channels = [hparams.input_size] * hparams.n_layers
