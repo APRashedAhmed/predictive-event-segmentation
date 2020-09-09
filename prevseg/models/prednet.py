@@ -381,11 +381,9 @@ class PredNet(pl.LightningModule):
 
     @staticmethod
     def add_model_specific_args(parent_parser):
-        parser = argparse.ArgumentParser(parents=list(parent_parser),
+        parser = argparse.ArgumentParser(parents=[parent_parser],
                                          add_help=False)
-        parser.add_argument('--n_layers', type=int, default=2)
-        parser.add_argument('--input_size', type=int, default=2048)
-        parser.add_argument('--time_steps', type=int, default=128)
+        parser.add_argument('--n_layers', type=int, default=4)
         parser.add_argument('--lr', type=float, default=0.001)
         parser.add_argument('--output_mode', type=str, default='error')
         parser.add_argument('--layer_loss_mode', type=str, default='first')

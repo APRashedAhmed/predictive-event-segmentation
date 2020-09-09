@@ -1,5 +1,6 @@
 """Script for the Schapiro dataloader"""
 import logging
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -79,8 +80,19 @@ class ShapiroFractalsDataset(IterableDataset):
         
     def __iter__(self):
         return self.iter_batch_dataset()
+    
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = argparse.ArgumentParser(parents=[parent_parser],
+                                         add_help=False)
+        parser.add_argument('--input_size', type=int, default=3*128*160)
+        parser.add_argument('--time_steps', type=int, default=128)
+        parser.add_argument('--max_steps', type=int, default=128)
+        parser.add_argument('--n_paths', type=int, default=16)
+        parser.add_argument('--n_pentagons', type=int, default=3)
+        return parser
 
-
+    
 class ShapiroResnetEmbeddingDataset(ShapiroFractalsDataset):
     def load_node_stimuli(self):
         # Load the fractal images into memory
@@ -96,3 +108,12 @@ class ShapiroResnetEmbeddingDataset(ShapiroFractalsDataset):
             [np.array(np.load(str(path)))
              for path in self.paths_data])    
 
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parent_cls_parser = ShapiroFractalsDataset.add_model_specific_args(
+            parent_parser)
+        parser = argparse.ArgumentParser(parents=[parent_cls_parser],
+                                         add_help=False,
+                                         conflict_handler='resolve')
+        parser.add_argument('--input_size', type=int, default=2048)
+        return parser

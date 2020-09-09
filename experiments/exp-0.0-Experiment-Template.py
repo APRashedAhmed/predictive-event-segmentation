@@ -11,86 +11,81 @@ import numpy as np
 import pytorch_lightning as pl
 from pytorch_lightning.logging.neptune import NeptuneLogger
 
-import prevseg.models.prednet as pn
-import prevseg.dataloaders.schapiro as sch
 import prevseg.constants as const
-from prevseg import index
+from prevseg import index, models, dataloaders
 
 logger = logging.getLogger(__name__)
 
-
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n_layers', type=int, default=2)
-    parser.add_argument('--input_size', type=int, default=2048)
-    parser.add_argument('--time_steps', type=int, default=128)
-    parser.add_argument('--max_steps', type=int, default=128)
-    parser.add_argument('--n_paths', type=int, default=16)
-    parser.add_argument('--n_pentagons', type=int, default=3)
+    parser.add_argument('--load_model', action='store_true')
+    parser.add_argument('--ipy', action='store_true')
+    parser.add_argument('--model', type=str, default='PredNetTrackedSchapiro')
+    parser.add_argument('--dataloader', type=str, default='ShapiroResnetEmbeddingDataset')
+
+    parser.add_argument('--n_workers', type=int, default=4)
+    parser.add_argument('--epochs', type=int, default=25)
+    parser.add_argument('--gpus', type=float, default=1)
+    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--seed', type=int, default=117)
+    parser.add_argument('--batch_size', type=int, default=256+128)
+    parser.add_argument('--n_val', type=int, default=256)
+
     parser.add_argument('--dir_checkpoints', type=str,
                         default=str(index.DIR_CHECKPOINTS))
     parser.add_argument('--dir_weights', type=str,
                         default=str(index.DIR_WEIGHTS))
     parser.add_argument('--dir_logs', type=str,
                         default=str(index.DIR_LOGS_TB))
-    parser.add_argument('--exp_name', type=str, default='')
-    parser.add_argument('--lr', type=float, default=0.001)
-    parser.add_argument('--output_mode', type=str, default='error')
-    parser.add_argument('--n_val', type=int, default=256)
-    parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--seed', type=int, default=117)
-    parser.add_argument('--batch_size', type=int, default=256+128)
-    parser.add_argument('--n_workers', type=int, default=4)
-    parser.add_argument('--epochs', type=int, default=25)
-    parser.add_argument('--model', type=str, default='PredNetTrackedSchapiro')
-    parser.add_argument('--dataloader', type=str, default='ShapiroResnetEmbeddingDataset')
-    parser.add_argument('--name', type=str, default='')
     parser.add_argument('--checkpoint_period', type=float, default=1.0)
     parser.add_argument('--val_check_interval', type=float, default=1.0)
     parser.add_argument('--save_top_k', type=float, default=1)
-    parser.add_argument('--gpus', type=float, default=1)
-    parser.add_argument('--layer_loss_mode', type=str, default='first')
-    parser.add_argument('--mini', type=bool, default=False)
-    parser.add_argument('--hostname', type=str, default='')
-    parser.add_argument('--ipython', type=bool, default=False)
-    parser.add_argument('--train_model', type=bool, default=True)
+    parser.add_argument('--exp_name', type=str, default='')
+    parser.add_argument('--name', type=str, default='')
+        
+    # Get Model and Dataset specific args
+    temp_args, _ = parser.parse_known_args()
+    
+    # Make sure this is correct
+    if hasattr(models, temp_args.model):
+        Model = getattr(models, temp_args.model)
+        parser = Model.add_model_specific_args(parser)
+    else:
+        raise Exception(f"""
+        Invalid model "{temp_args.model}" passed. Check it is importable:
+        "from prevseg.models import {temp_args.model}"
+        """)
+    
+    # Check this is correct as well
+    if hasattr(dataloaders, temp_args.dataloader):
+        Dataloader = getattr(dataloaders, temp_args.dataloader)
+        parser = Dataloader.add_model_specific_args(parser)
+    else:
+        raise Exception(f"""
+        Invalid dataloader "{temp_args.dataloader}" passed. Check it is
+        importable: "from prevseg.dataloaders import {temp_args.dataloader}"
+        """)
     
     # add all the available options to the trainer
     # parser = pl.Trainer.add_argparse_args(parser)
     hparams = parser.parse_args()
 
-    # Make sure this is correct
-    if hasattr(pn, hparams.model):
-        Model = getattr(pn, hparams.model)
-        hparams.name = Model.name if not hparams.name else hparams.name
-    else:
-        raise Exception(f'Invalid model "{hparams.model}" passed.')
-
-    # Check this is correct as well
-    if hasattr(sch, hparams.dataloader):
-        Dataloader = getattr(sch, hparams.dataloader)
-    else:
-        raise Exception(f'Invalid dataloader "{hparams.dataloader}" passed.')
+    # Get or create a name
+    hparams.name = Model.name if not hparams.name else hparams.name
 
     # Get the hostname for book keeping
-    hparams.hostname = hparams.hostname or socket.gethostname()
+    hparams.hostname = socket.gethostname()
 
     # Neptune Logger
-    logger = NeptuneLogger(
+    get_logger = lambda : NeptuneLogger(
         # api_key="ANONYMOUS",
         project_name="aprashedahmed/sandbox",
         experiment_name=f'{hparams.name}_{hparams.exp_name}',
         params=vars(hparams),
         tags=["pytorch-lightning", "test"]
     )
-    # # Tensorboard logger
-    # log_dir = Path(hparams.dir_logs) / hparams.exp_name / f'{hparams.name}'
-    # if not log_dir.exists():
-    #     log_dir.mkdir(parents=True)
-    # logger = pl.loggers.TensorBoardLogger(str(log_dir.parent),
-    #                                       name=hparams.name)
 
-    if hparams.train_model:
+    if not hparams.load_model:
         # Checkpoint Call back
         ckpt_dir = Path(hparams.dir_checkpoints) \
             / f'{hparams.name}_{hparams.exp_name}'
@@ -109,33 +104,37 @@ if __name__ == '__main__':
         trainer = pl.Trainer(
             checkpoint_callback=ckpt,
             max_epochs=hparams.epochs,
-            logger=logger,
+            logger=get_logger(),
             val_check_interval=hparams.val_check_interval,
             gpus=hparams.gpus,
         )
 
         now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'Current time: {now}')
-        print(f'Running with following hparams:')
+        print(f'Current time: {now}', flush=True)
+        print(f'Running with following hparams:', flush=True)
         pprint(vars(hparams))
 
         # Define the model
-        model = Model(hparams=hparams)
+        model = Model(hparams)
         print(model, flush=True)
 
-        print('Beginning training')
+        print('Beginning training', flush=True)
         # Train the model
-
         trainer.fit(model)
 
     else:
         # Get all the experiments with the name hparams.name*
-        experiments = index.DIR_CHECKPOINTS.glob(f'{hparams.name}*')
-        # Get the newest exp by v number
-        experiment_newest = sorted(
-            experiments, 
-            key=lambda path: int(path.stem.split('_')[-1][1:]))[-1]
-        # Get the model with the best (lowest) val_loss
+        experiments = list(index.DIR_CHECKPOINTS.glob(f'{hparams.name}_{hparams.exp_name}*'))
+
+        # import pdb; pdb.set_trace()
+        if len(experiments) > 1:
+            # Get the newest exp by v number
+            experiment_newest = sorted(
+                experiments, 
+                key=lambda path: int(path.stem.split('_')[-1][1:]))[-1]
+            # Get the model with the best (lowest) val_loss
+        else:
+            experiment_newest = experiments[0]
         experiment_newest_best_val = sorted(
             experiment_newest.iterdir(),
             key=lambda path: float(path.stem.split('val_loss=')[-1]))[0]
@@ -149,11 +148,10 @@ if __name__ == '__main__':
         # gc.collect()
         # torch.cuda.empty_cache()
 
-        model = ModelClass.load_from_checkpoint(str(experiment_newest_best_val))
+        model = Model.load_from_checkpoint(str(experiment_newest_best_val))
         model.prepare_data()
         model.cuda()
-        hparams = model.hparams
-        model.logger = logger
+        model.logger = get_logger()
 
     # Define the visualization data
     euclid_nodes = np.array([11, 13, 14, 12, 13, 10, 12, 11, 14,
@@ -168,8 +166,13 @@ if __name__ == '__main__':
     test_data = np.array([model.ds.array_data[n] for n in test_nodes]).reshape((
         1, len(test_nodes), 2048))
 
+    print(test_data.shape,torch.Tensor(test_data).shape)
+
     # Visualize the test data
     figs = model.visualize(torch.Tensor(test_data), borders)
 
-    if hparams.ipython:
-        IPython.embed()
+    if hparams.ipy:
+        IPython.embed()    
+
+if __name__ == '__main__':
+    main()
