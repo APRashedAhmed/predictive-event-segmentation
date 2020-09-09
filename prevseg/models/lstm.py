@@ -53,8 +53,8 @@ class LSTMCell(pn.PredCellTracked):
 
 class LSTMStacked(pn.PredNetTrackedSchapiro):
     name = 'lstmstacked'
-    def __init__(self, hparams=const.DEFAULT_HPARAMS, CellClass=LSTMCell,
-                 a_channels=None, r_channels=None, *args, **kwargs):
+    def __init__(self, hparams, CellClass=LSTMCell, a_channels=None,
+                 r_channels=None, *args, **kwargs):
         if not isinstance(hparams, Namespace):
             hparams = Namespace(**hparams)
         # Assertions for how it should be used

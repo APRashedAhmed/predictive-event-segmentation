@@ -1,6 +1,7 @@
 """Basic prednet"""
 import time
 import logging
+import argparse
 from functools import wraps
 
 import torch
@@ -109,7 +110,7 @@ class PredCell(object):
                 
 class PredNet(pl.LightningModule):
     name = 'prednet'
-    def __init__(self, hparams=const.DEFAULT_HPARAMS, ds=None, a_channels=None,
+    def __init__(self, hparams, ds=None, a_channels=None,
                  r_channels=None, CellClass=PredCell):
         super().__init__()
         # Attribute definitions
@@ -378,6 +379,18 @@ class PredNet(pl.LightningModule):
         out_dict['global_step'] = self.global_step
         return out_dict
 
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = argparse.ArgumentParser(parents=list(parent_parser),
+                                         add_help=False)
+        parser.add_argument('--n_layers', type=int, default=2)
+        parser.add_argument('--input_size', type=int, default=2048)
+        parser.add_argument('--time_steps', type=int, default=128)
+        parser.add_argument('--lr', type=float, default=0.001)
+        parser.add_argument('--output_mode', type=str, default='error')
+        parser.add_argument('--layer_loss_mode', type=str, default='first')
+        return parser
+
     # def test_epoch_end(self, output):
     #     out_dict = {}
     #     out_dict['test_loss'] = np.mean([out['test_loss'].item()
@@ -471,9 +484,9 @@ class PredCellTracked(PredCell):
             
 class PredNetTracked(PredNet):
     name = 'prednet_tracked'
-    def __init__(self, track=None, CellClass=PredCellTracked, *args,
+    def __init__(self, hparams, track=None, CellClass=PredCellTracked, *args,
                  **kwargs):
-        super().__init__(CellClass=CellClass, *args, **kwargs)
+        super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
         self.track = track or ['hidden_diff',
                                'error_diff',
                                'representation_diff']
