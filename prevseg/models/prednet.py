@@ -18,6 +18,7 @@ from pytorch_lightning.core.decorators import auto_move_data
 import prevseg.constants as const
 import prevseg.datasets.breakfast as bk
 import prevseg.datasets.schapiro as sch
+from prevseg.utils import child_argparser
 from prevseg.torch.lstm_cell import LSTM
 from prevseg.torch.activations import SatLU
 
@@ -140,16 +141,7 @@ class PredNet(pl.LightningModule):
         # Put together the model
         self.build_model()                
         
-    @staticmethod
-    def set_seed(seed):
-        np.random.seed(seed)
-        torch.manual_seed(seed)               
-
     def build_model(self):
-        # Set the seed if provided
-        if hasattr(self.hparams, 'seed'):
-            self.set_seed(self.hparams.seed)
-        
         # Channel sizes
         if self.r_channels is None:
             self.r_channels = [self.input_size // (2**i) 
@@ -342,33 +334,38 @@ class PredNet(pl.LightningModule):
     
     def _common_step(self, batch, batch_idx):
         data, path = batch
-        errors = self.forward(data) # batch x n_layers x nt
-        loc_batch = errors.size(0)
-        errors = torch.mm(errors.view(-1, self.time_steps), 
+        prediction_errors = self.forward(data) # batch x n_layers x nt
+        loc_batch = prediction_errors.size(0)
+        loss = torch.mm(prediction_errors.view(-1, self.time_steps), 
                           self.time_loss_weights) # batch*n_layers x 1
         if self.layer_loss_mode is not None:
-            errors = torch.mm(errors.view(loc_batch, -1), 
+            loss = torch.mm(loss.view(loc_batch, -1), 
                               self.layer_loss_weights)
-        return torch.mean(errors, axis=0)
+        return torch.mean(loss, axis=0)
         
     def training_step(self, batch, batch_idx):
         loss = self._common_step(batch, batch_idx)
         result = pl.TrainResult(loss)
-        result.log('loss', loss)
+        # Unclear why this *doesn't* work, but it doesnt log at every step.
+        # Best I got was logging at every epoch
+        
+        # result.log('loss', loss, prog_bar=True)
+        
+        # This works though, so going with it for now
+        self.logger.experiment.log_metric('loss', loss)
         return result
     
     def validation_step(self, batch, batch_idx):
         loss = self._common_step(batch, batch_idx)
         result = pl.EvalResult(loss)
-        result.log('val_loss', loss)
+        result.log('val_loss', loss, prog_bar=True)
         return result
 
     @staticmethod
     def add_model_specific_args(parent_parser):
-        parser = argparse.ArgumentParser(parents=[parent_parser],
-                                         add_help=False)
+        parser = child_argparser(parent_parser)
         parser.add_argument('--n_layers', type=int, default=4)
-        parser.add_argument('--lr', type=float, default=0.001)
+        parser.add_argument('--lr', type=float, default=0.001)        
         parser.add_argument('--output_mode', type=str, default='error')
         parser.add_argument('--layer_loss_mode', type=str, default='first')
         return parser
@@ -538,9 +535,6 @@ class PredNetTracked(PredNet):
     def eval_outputs(self):
         outputs = {}
         for tracked in self.track:
-            # track_list = getattr(self.cells[0], tracked+'_list')
-            # [print(t.shape) for t in track_list]
-            # import ipdb; ipdb.set_trace()            
             outputs[tracked] = torch.cat(
                 [torch.Tensor(getattr(cell, tracked+'_list')).unsqueeze(0)
                  for cell in self.cells])

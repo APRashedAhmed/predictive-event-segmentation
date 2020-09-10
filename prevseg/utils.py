@@ -1,4 +1,5 @@
 """Script for utility functions in predictive-event-segmentation"""
+import argparse
 import inspect
 import logging
 from collections.abc import Iterable
@@ -164,3 +165,11 @@ def subclasses_and_names_in_module(module, cls=None):
     """
     return _attrs_and_names_in_module(issubclass, module, cls=cls)
 
+def child_argparser(parents, add_help=False, conflict_handler='resolve', *args,
+                    **kwargs):
+    return argparse.ArgumentParser(
+        parents=parents if isiterable(parents) else [parents],
+        add_help=add_help,
+        conflict_handler=conflict_handler,
+        *args, **kwargs
+    )

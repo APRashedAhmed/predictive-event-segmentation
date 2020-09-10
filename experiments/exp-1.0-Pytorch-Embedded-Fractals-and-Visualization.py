@@ -82,7 +82,7 @@ def main():
     hparams.hostname = socket.gethostname()
 
     # Neptune Logger
-    get_logger = lambda : NeptuneLogger(
+    logger = NeptuneLogger(
         project_name="aprashedahmed/sandbox",
         experiment_name=f'{hparams.name}_{hparams.exp_name}',
         params=vars(hparams),
@@ -111,7 +111,7 @@ def main():
         trainer = pl.Trainer(
             checkpoint_callback=ckpt,
             max_epochs=hparams.epochs,
-            logger=get_logger(),
+            logger=logger,
             val_check_interval=hparams.val_check_interval,
             gpus=hparams.gpus,
         )
@@ -154,7 +154,7 @@ def main():
                 path.stem.split('val_loss=')[-1].split('_')[0]))[0]        
 
         model = Model.load_from_checkpoint(str(experiment_newest_best_val))
-        model.logger = get_logger()
+        model.logger = logger
         model.prepare_data(mapping=const.DEFAULT_MAPPING)
 
         # Define the trainer
