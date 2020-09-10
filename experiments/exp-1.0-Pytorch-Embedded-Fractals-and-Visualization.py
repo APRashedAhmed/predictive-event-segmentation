@@ -33,7 +33,7 @@ def main():
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--seed', type=int, default=117)
     parser.add_argument('--batch_size', type=int, default=256+128)
-    parser.add_argument('--n_val', type=int, default=256)
+    parser.add_argument('--n_val', type=int, default=1)
 
     parser.add_argument('--dir_checkpoints', type=str,
                         default=str(index.DIR_CHECKPOINTS))
@@ -124,8 +124,7 @@ def main():
         # Define the model
         model = Model(hparams)
         print(model, flush=True)
-        model.prepare_data(mapping=const.DEFAULT_MAPPING,
-                           val_path=const.DEFAULT_PATH)
+        model.prepare_data(mapping=const.DEFAULT_MAPPING)
 
         print('\nBeginning training:', flush=True)
         now = datetime.datetime.now()
@@ -156,7 +155,7 @@ def main():
 
         model = Model.load_from_checkpoint(str(experiment_newest_best_val))
         model.logger = get_logger()
-        model.prepare_data()
+        model.prepare_data(mapping=const.DEFAULT_MAPPING)
 
         # Define the trainer
         trainer = pl.Trainer(
@@ -170,23 +169,13 @@ def main():
         if 'cuda' in hparams.device and torch.cuda.is_available():
             model.cuda()
 
-        # # Define the visualization data
-        # euclid_nodes = np.array([11, 13, 14, 12, 13, 10, 12, 11, 14,
-        #                          0,  3,  4,  2,  3,  1,  2,  0,  1,  4,
-        #                          5,  8,  9,  7,  8,  6,  7,  5,  6,  9, 10])
-        # # Bidirectional euclidean walk 
-        # test_nodes = np.concatenate((euclid_nodes, np.flip(euclid_nodes)[1:]))
-
-        test_data = np.array([model.ds.array_data[n] for n in const.DEFAULT_PATH]).reshape((
-            1, len(const.DEFAULT_PATH), 2048))
-        # # Create the test dataloader
-        # test_dataloader = Dataloader(mode='custom', mapping=mapping,
-        #                              custom_path=test_nodes)
-
+        # Create the test data
+        test_data = np.array([model.ds.array_data[n]
+                              for n in const.DEFAULT_PATH]).reshape((
+                                      1, len(const.DEFAULT_PATH), 2048))
         torch_data = torch.Tensor(test_data)
 
-        # outs = trainer.test(model)
-
+        # Get the model outputs
         outs = model.forward(torch_data,
                             output_mode='eval',
                             run_num='fwd_rev', 
@@ -195,16 +184,9 @@ def main():
                                             output_mode='error',
                                             run_num='fwd_rev', 
                                             tb_labels=['nodes'])})
-
-        print()
-        for name, data in outs.items():
-            print(name, data.shape)
         
-        # Where the borders are
-        borders = [9, 19, 29, 30, 40, 50]
-
         # Visualize the test data
-        figs = model.visualize(outs, borders=borders)
+        figs = model.visualize(outs, borders=const.DEFAULT_BORDERS)
         if not hparams.no_graphs:
             for name, fig in figs.items():
                 model.logger.experiment.log_image(name, fig)

@@ -336,12 +336,6 @@ class PredNet(pl.LightningModule):
                           batch_size=self.batch_size, 
                           sampler=self.val_sampler,
                           num_workers=self.hparams.n_workers)
-
-    def test_dataloader(self):
-        return DataLoader(self.ds, 
-                          batch_size=self.batch_size, 
-                          sampler=self.test_sampler,
-                          num_workers=self.hparams.n_workers)
     
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
@@ -368,19 +362,6 @@ class PredNet(pl.LightningModule):
         result = pl.EvalResult(loss)
         result.log('val_loss', loss)
         return result
-
-    def test_step(self, batch, batch_idx):
-        data, _ = batch
-
-        outs = self.forward(data,
-                            output_mode='eval',
-                            run_num='fwd_rev', 
-                            tb_labels=['nodes'])
-        outs.update({'error' : self.forward(data,
-                                            output_mode='error',
-                                            run_num='fwd_rev', 
-                                            tb_labels=['nodes'])})
-        return outs
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -416,7 +397,7 @@ class PredCellTracked(PredCell):
             diff = torch.mean(
                 (R.permute(1, 0, 2) - self.R.permute(1, 0, 2))**2).detach()
             scalar_name = f'representation_diff_layer_{self.layer_num}'
-            # self.parent.logger.experiment.log_metric(scalar_name, diff)
+            self.parent.logger.experiment.log_metric(scalar_name, diff)
             self.representation_diff_list.append(diff)
 
     def track_hidden(self, output_mode, H):
@@ -431,7 +412,7 @@ class PredCellTracked(PredCell):
             scalar_name = f'hidden_diff_layer_{self.layer_num}'
             # scalar_name = f'test_hidden_diff_{self.parent.run_num}/' \
             #     'layer_{self.layer_num}/'
-            # self.parent.logger.experiment.log_metric(scalar_name, diff)
+            self.parent.logger.experiment.log_metric(scalar_name, diff)
             self.hidden_diff_list.append(diff)
 
     def track_error(self, output_mode, E):
@@ -439,15 +420,10 @@ class PredCellTracked(PredCell):
         if 'error_full' in self.parent.track and output_mode == 'eval':
             self.error_full_list.append(E.permute(1, 0, 2))
         if 'error_diff' in self.parent.track and output_mode == 'eval':
-            # print('E', E.shape, self.E.shape)
             diff = torch.mean(
                 (E.permute(1, 0, 2) - self.E.permute(1, 0, 2))**2).detach()
-            # diff_dict = {f'{self.parent.tb_labels[i]}' : diff
-            #              for i, diff in enumerate(diffs)}
             scalar_name = f'error_diff_layer_{self.layer_num}'
-            # scalar_name = f'test_error_diff_{self.parent.run_num}/' \
-            #     'layer_{self.layer_num}/'
-            # self.parent.logger.experiment.log_metric(scalar_name, diff)
+            self.parent.logger.experiment.log_metric(scalar_name, diff)
             self.error_diff_list.append(diff)
 
     def reset(self, *args, **kwargs):
@@ -639,7 +615,8 @@ class PredNetTrackedSchapiro(PredNetTracked):
             n_paths=self.hparams.n_val,
             max_steps=self.hparams.max_steps, 
             mapping=mapping or self.ds.mapping,
-            mode='custom' if val_path is not None else 'euclidean',
+            mode='euclidean' if val_path is None else 'custom',
+            custom_path=val_path,
         )
                 
     def train_dataloader(self):
@@ -651,6 +628,3 @@ class PredNetTrackedSchapiro(PredNetTracked):
         return DataLoader(self.ds_val, 
                           batch_size=None,
                           num_workers=self.hparams.n_workers)
-
-    def test_dataloader(self):
-        return self.val_dataloader()

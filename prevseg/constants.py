@@ -18,6 +18,7 @@ DEFAULT_PATH = np.concatenate((_euclid_nodes, np.flip(_euclid_nodes)[1:]))
 DEFAULT_MAPPING = {0: '1', 1: '60', 2: '95', 3: '100', 4: '14', 5: '2', 6: '63',
                    7: '58', 8: '96', 9: '55', 10: '99', 11: '50', 12: '7',
                    13: '89', 14: '12'}
+DEFAULT_BORDERS =  [9, 19, 29, 30, 40, 50]
 
 # Breakfast video info
 DIM_H = 240

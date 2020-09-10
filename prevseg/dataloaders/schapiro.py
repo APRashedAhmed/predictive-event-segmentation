@@ -30,7 +30,6 @@ class ShapiroFractalsDataset(IterableDataset):
         if self.mode == 'custom':
             assert self.custom_path is not None and isiterable(self.custom_path)
             assert mapping is not None
-            self.batch_size = 1
             self.n_paths = 1
             self.max_steps = len(self.custom_path)
         
