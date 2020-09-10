@@ -13,6 +13,7 @@ from torch.nn import functional as F, GRU
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
+from pytorch_lightning.core.decorators import auto_move_data
 
 import prevseg.constants as const
 import prevseg.dataloaders.breakfast as bk
@@ -264,7 +265,8 @@ class PredNet(pl.LightningModule):
             # If not last layer, update stored A
             if cell.layer_num < self.n_layers - 1:
                 self.A = cell.update_a(E)
-            
+
+    @auto_move_data                            
     def forward(self, input):
         _, time_steps, *_ = self.check_input_shape(input)
         
@@ -335,16 +337,16 @@ class PredNet(pl.LightningModule):
                           sampler=self.val_sampler,
                           num_workers=self.hparams.n_workers)
 
-    # def test_dataloader(self):
-    #     return DataLoader(self.ds, 
-    #                       batch_size=self.batch_size, 
-    #                       sampler=self.test_sampler,
-    #                       num_workers=self.hparams.n_workers)
+    def test_dataloader(self):
+        return DataLoader(self.ds, 
+                          batch_size=self.batch_size, 
+                          sampler=self.test_sampler,
+                          num_workers=self.hparams.n_workers)
     
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
     
-    def _common_step(self, batch, batch_idx, mode):
+    def _common_step(self, batch, batch_idx):
         data, path = batch
         errors = self.forward(data) # batch x n_layers x nt
         loc_batch = errors.size(0)
@@ -353,32 +355,32 @@ class PredNet(pl.LightningModule):
         if self.layer_loss_mode is not None:
             errors = torch.mm(errors.view(loc_batch, -1), 
                               self.layer_loss_weights)
-        errors = torch.mean(errors, axis=0)
+        return torch.mean(errors, axis=0)
         
-        if mode == 'train':
-            prefix = ''
-        else:
-            prefix = mode + '_'
-            
-        self.logger.experiment.log_metric(f'{prefix}loss', 
-                                          errors)
-        return {f'{prefix}loss' : errors}
-    
     def training_step(self, batch, batch_idx):
-        return self._common_step(batch, batch_idx, 'train')
+        loss = self._common_step(batch, batch_idx)
+        result = pl.TrainResult(loss)
+        result.log('loss', loss)
+        return result
     
     def validation_step(self, batch, batch_idx):
-        return self._common_step(batch, batch_idx, 'val')
+        loss = self._common_step(batch, batch_idx)
+        result = pl.EvalResult(loss)
+        result.log('val_loss', loss)
+        return result
 
-    # def test_step(self, batch, batch_idx):
-    #     return self._common_step(batch, batch_idx, 'test')
+    def test_step(self, batch, batch_idx):
+        data, _ = batch
 
-    def validation_epoch_end(self, output):
-        out_dict = {}
-        out_dict['val_loss'] = torch.as_tensor(np.mean([out['val_loss'].item()
-                                                        for out in output]))
-        out_dict['global_step'] = self.global_step
-        return out_dict
+        outs = self.forward(data,
+                            output_mode='eval',
+                            run_num='fwd_rev', 
+                            tb_labels=['nodes'])
+        outs.update({'error' : self.forward(data,
+                                            output_mode='error',
+                                            run_num='fwd_rev', 
+                                            tb_labels=['nodes'])})
+        return outs
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -390,13 +392,7 @@ class PredNet(pl.LightningModule):
         parser.add_argument('--layer_loss_mode', type=str, default='first')
         return parser
 
-    # def test_epoch_end(self, output):
-    #     out_dict = {}
-    #     out_dict['test_loss'] = np.mean([out['test_loss'].item()
-    #                                     for out in output])
-    #     out_dict['global_step'] = self.global_step
-    #     return out_dict
-
+    
 class PredCellTracked(PredCell):
     name = 'predcell_tracked'
     """Organizational class."""
@@ -417,36 +413,26 @@ class PredCellTracked(PredCell):
         if 'representation_full' in self.parent.track and output_mode == 'eval':
             self.representation_full_list.append(R.permute(1, 0, 2))
         if 'representation_diff' in self.parent.track and output_mode == 'eval':
-            diffs = torch.mean(
-                (R.permute(1, 0, 2) - self.R.permute(1, 0, 2))**2,
-                2).detach()
-            diff_dict = {f'{self.parent.tb_labels[i]}' : diff
-                         for i, diff in enumerate(diffs)}
-            scalar_name = f'test_representation_diff_{self.parent.run_num}/' \
-                'layer_{self.layer_num}/'
-            # self.parent.logger.experiment.log_metrics(
-            #     scalar_name,
-            #     dict(diff_dict),
-            #     self.parent.t)
-            self.representation_diff_list.append(diffs)
+            diff = torch.mean(
+                (R.permute(1, 0, 2) - self.R.permute(1, 0, 2))**2).detach()
+            scalar_name = f'representation_diff_layer_{self.layer_num}'
+            # self.parent.logger.experiment.log_metric(scalar_name, diff)
+            self.representation_diff_list.append(diff)
 
     def track_hidden(self, output_mode, H):
         # Track hidden states if desired
         if 'hidden_full' in self.parent.track and output_mode == 'eval':
             self.hidden_full_list.append(H[1].permute(1, 0, 2))
         if 'hidden_diff' in self.parent.track and output_mode == 'eval':
-            diffs = torch.mean(
-                (H[1].permute(1, 0, 2) - self.H[1].permute(1, 0, 2))**2,
-                2).detach()
-            diff_dict = {f'{self.parent.tb_labels[i]}' : diff
-                         for i, diff in enumerate(diffs)}
-            scalar_name = f'test_hidden_diff_{self.parent.run_num}/' \
-                'layer_{self.layer_num}/'
-            # self.parent.logger.experiment.log_metrics(
-            #     scalar_name,
-            #     dict(diff_dict),
-            #     self.parent.t)
-            self.hidden_diff_list.append(diffs)
+            diff = torch.mean(
+                (H[1].permute(1, 0, 2) - self.H[1].permute(1, 0, 2))**2).detach()
+            # diff_dict = {f'{self.parent.tb_labels[i]}' : diff
+            #              for i, diff in enumerate(diffs)}
+            scalar_name = f'hidden_diff_layer_{self.layer_num}'
+            # scalar_name = f'test_hidden_diff_{self.parent.run_num}/' \
+            #     'layer_{self.layer_num}/'
+            # self.parent.logger.experiment.log_metric(scalar_name, diff)
+            self.hidden_diff_list.append(diff)
 
     def track_error(self, output_mode, E):
         # Track hidden states if desired
@@ -454,18 +440,15 @@ class PredCellTracked(PredCell):
             self.error_full_list.append(E.permute(1, 0, 2))
         if 'error_diff' in self.parent.track and output_mode == 'eval':
             # print('E', E.shape, self.E.shape)
-            diffs = torch.mean(
-                (E.permute(1, 0, 2) - self.E.permute(1, 0, 2))**2,
-                2).detach()
-            diff_dict = {f'{self.parent.tb_labels[i]}' : diff
-                         for i, diff in enumerate(diffs)}
-            scalar_name = f'test_error_diff_{self.parent.run_num}/' \
-                'layer_{self.layer_num}/'
-            # self.parent.logger.experiment.log_metrics(
-            #     scalar_name,
-            #     dict(diff_dict),
-            #     self.parent.t)            
-            self.error_diff_list.append(diffs)
+            diff = torch.mean(
+                (E.permute(1, 0, 2) - self.E.permute(1, 0, 2))**2).detach()
+            # diff_dict = {f'{self.parent.tb_labels[i]}' : diff
+            #              for i, diff in enumerate(diffs)}
+            scalar_name = f'error_diff_layer_{self.layer_num}'
+            # scalar_name = f'test_error_diff_{self.parent.run_num}/' \
+            #     'layer_{self.layer_num}/'
+            # self.parent.logger.experiment.log_metric(scalar_name, diff)
+            self.error_diff_list.append(diff)
 
     def reset(self, *args, **kwargs):
         self.hidden_full_list = []
@@ -537,7 +520,8 @@ class PredNetTracked(PredNet):
             # If not last layer, update stored A
             if cell.layer_num < self.n_layers - 1:
                 self.A = cell.update_a(E)
-            
+
+    @auto_move_data                
     def forward(self, input, output_mode=None, track=None, run_num=None,
                 tb_labels=None):
         self.run_num = run_num or self.run_num
@@ -580,9 +564,10 @@ class PredNetTracked(PredNet):
         for tracked in self.track:
             # track_list = getattr(self.cells[0], tracked+'_list')
             # [print(t.shape) for t in track_list]
-            
-            outputs[tracked] = [torch.cat(getattr(cell, tracked+'_list'), 1)
-                                for cell in self.cells]
+            # import ipdb; ipdb.set_trace()            
+            outputs[tracked] = torch.cat(
+                [torch.Tensor(getattr(cell, tracked+'_list')).unsqueeze(0)
+                 for cell in self.cells])
         return outputs
 
     def _visualize(self, data, vlines=None, offset=0, title=''):
@@ -615,56 +600,46 @@ class PredNetTracked(PredNet):
         gcf.set_size_inches(16, 9)
         return fig
 
-    def visualize_errors(self, test_data, borders=None):
-        outs_pe = self.forward(test_data,
-                               output_mode='error',
-                               run_num='fwd_rev', 
-                               tb_labels=['nodes'])
+    def visualize_errors(self, outs_pe, borders=None):
         return self._visualize(outs_pe[0,:,:], vlines=borders,
                                title='Mean Prediction Errors')
         
-    def visualize_diffs(self, test_data, borders=None):
-        outs = self.forward(test_data,
-                            output_mode='eval',
-                            run_num='fwd_rev', 
-                            tb_labels=['nodes'])
+    def visualize_diffs(self, outs, borders=None):
         figs = {}
         for diff in self.track:
             offset = 0 if 'error' in diff else 1
             # import ipdb; ipdb.set_trace()
             figs[diff] = self._visualize(
-                torch.cat(outs[diff]),
+                outs[diff],
                 vlines=borders,
                 offset=offset,
                 title=f'Mean {diff.replace("_", " ").title()}'
             )
         return figs
     
-    def visualize(self, *args, **kwargs):
-        figs = self.visualize_diffs(*args, **kwargs)
-        figs.update({'errors': self.visualize_errors(*args, **kwargs)})
+    def visualize(self, data, borders=None):
+        figs = self.visualize_diffs(data, borders=borders)
+        figs.update({'errors': self.visualize_errors(data['error'],
+                                                     borders=borders)})
         return figs
 
 class PredNetTrackedSchapiro(PredNetTracked):
     name = 'prednet_tracked_schapiro'
-    def prepare_data(self, mapping=None, *args, **kwargs):
+    def prepare_data(self, mapping=None, val_path=None):
         self.ds = self.ds or sch.ShapiroResnetEmbeddingDataset(
             batch_size=self.batch_size, 
             n_pentagons=self.hparams.n_pentagons, 
             max_steps=self.hparams.max_steps, 
             n_paths=self.hparams.n_paths,
             mapping=mapping,
-            *args,
-            **kwargs,
         )
         self.ds_val = self.ds_val or sch.ShapiroResnetEmbeddingDataset(
-            batch_size=self.batch_size, 
             n_pentagons=self.hparams.n_pentagons,
-            n_paths=1,
+            batch_size=self.batch_size, 
+            n_paths=self.hparams.n_val,
+            max_steps=self.hparams.max_steps, 
             mapping=mapping or self.ds.mapping,
-            mode='euclidean',
-            *args,
-            **kwargs,
+            mode='custom' if val_path is not None else 'euclidean',
         )
                 
     def train_dataloader(self):
@@ -676,3 +651,6 @@ class PredNetTrackedSchapiro(PredNetTracked):
         return DataLoader(self.ds_val, 
                           batch_size=None,
                           num_workers=self.hparams.n_workers)
+
+    def test_dataloader(self):
+        return self.val_dataloader()

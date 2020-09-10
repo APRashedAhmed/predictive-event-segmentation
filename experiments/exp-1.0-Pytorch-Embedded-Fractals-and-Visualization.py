@@ -10,7 +10,7 @@ import IPython
 import torch
 import numpy as np
 import pytorch_lightning as pl
-from pytorch_lightning.logging.neptune import NeptuneLogger
+from pytorch_lightning.loggers.neptune import NeptuneLogger
 
 import prevseg.constants as const
 from prevseg import index, models, dataloaders
@@ -25,6 +25,7 @@ def main():
     parser.add_argument('--load_model', action='store_true')
     parser.add_argument('--ipy', action='store_true')
     parser.add_argument('--no_graphs', action='store_true')
+    parser.add_argument('--no_test', action='store_true')
 
     parser.add_argument('--n_workers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=25)
@@ -45,7 +46,7 @@ def main():
     parser.add_argument('--save_top_k', type=float, default=1)
     parser.add_argument('--exp_name', type=str, default='')
     parser.add_argument('--name', type=str, default='')
-    
+
     # Get Model and Dataset specific args
     temp_args, _ = parser.parse_known_args()
     
@@ -73,7 +74,7 @@ def main():
     # add all the available options to the trainer
     # parser = pl.Trainer.add_argparse_args(parser)
     hparams = parser.parse_args()
-
+    
     # Get or create a name
     hparams.name = Model.name if not hparams.name else hparams.name
 
@@ -88,9 +89,8 @@ def main():
         tags=["pytorch-lightning", "test"],
     )
 
-    mapping = {0: '1', 1: '60', 2: '95', 3: '100', 4: '14', 5: '2', 6: '63',
-               7: '58', 8: '96', 9: '55', 10: '99', 11: '50', 12: '7', 13: '89',
-               14: '12'}
+    # Set the seed
+    pl.seed_everything(hparams.seed)
 
     if not hparams.load_model:
         # Checkpoint Call back
@@ -124,7 +124,8 @@ def main():
         # Define the model
         model = Model(hparams)
         print(model, flush=True)
-        model.prepare_data(mapping=mapping)
+        model.prepare_data(mapping=const.DEFAULT_MAPPING,
+                           val_path=const.DEFAULT_PATH)
 
         print('\nBeginning training:', flush=True)
         now = datetime.datetime.now()
@@ -151,38 +152,63 @@ def main():
         experiment_newest_best_val = sorted(
             experiment_newest.iterdir(),
             key=lambda path: float(
-                path.stem.split('val_loss=')[-1].split('_')[0]))[0]
+                path.stem.split('val_loss=')[-1].split('_')[0]))[0]        
 
         model = Model.load_from_checkpoint(str(experiment_newest_best_val))
         model.logger = get_logger()
         model.prepare_data()
 
-    # Ensure we are in cuda for testing if specified
-    if 'cuda' in hparams.device and torch.cuda.is_available():
-        model.cuda()
-    
-    # Define the visualization data
-    euclid_nodes = np.array([11, 13, 14, 12, 13, 10, 12, 11, 14,
-                             0,  3,  4,  2,  3,  1,  2,  0,  1,  4,
-                             5,  8,  9,  7,  8,  6,  7,  5,  6,  9, 10])
-    # Bidirectional euclidean walk 
-    test_nodes = np.concatenate((euclid_nodes, np.flip(euclid_nodes)[1:]))
-    # Where the borders are
-    borders = [9, 19, 29, 30, 40, 50]
+        # Define the trainer
+        trainer = pl.Trainer(
+            logger=model.logger,
+            gpus=hparams.gpus,
+            max_epochs=1,
+        )
 
-    # Create the data
-    test_data = np.array([model.ds.array_data[n] for n in test_nodes]).reshape((
-        1, len(test_nodes), 2048))
+    if not hparams.no_test:
+        # Ensure we are in cuda for testing if specified
+        if 'cuda' in hparams.device and torch.cuda.is_available():
+            model.cuda()
 
-    # Visualize the test data
-    figs = model.visualize(torch.Tensor(test_data), borders=borders)
-    if not hparams.no_graphs:
-        for name, fig in figs.items():
-            model.logger.experiment.log_image(name, fig)
+        # # Define the visualization data
+        # euclid_nodes = np.array([11, 13, 14, 12, 13, 10, 12, 11, 14,
+        #                          0,  3,  4,  2,  3,  1,  2,  0,  1,  4,
+        #                          5,  8,  9,  7,  8,  6,  7,  5,  6,  9, 10])
+        # # Bidirectional euclidean walk 
+        # test_nodes = np.concatenate((euclid_nodes, np.flip(euclid_nodes)[1:]))
 
-    # End with an ipython shell
-    if hparams.ipy:
-        IPython.embed()
+        test_data = np.array([model.ds.array_data[n] for n in const.DEFAULT_PATH]).reshape((
+            1, len(const.DEFAULT_PATH), 2048))
+        # # Create the test dataloader
+        # test_dataloader = Dataloader(mode='custom', mapping=mapping,
+        #                              custom_path=test_nodes)
+
+        torch_data = torch.Tensor(test_data)
+
+        # outs = trainer.test(model)
+
+        outs = model.forward(torch_data,
+                            output_mode='eval',
+                            run_num='fwd_rev', 
+                            tb_labels=['nodes'])
+        outs.update({'error' : model.forward(torch_data,
+                                            output_mode='error',
+                                            run_num='fwd_rev', 
+                                            tb_labels=['nodes'])})
+
+        print()
+        for name, data in outs.items():
+            print(name, data.shape)
+        
+        # Where the borders are
+        borders = [9, 19, 29, 30, 40, 50]
+
+        # Visualize the test data
+        figs = model.visualize(outs, borders=borders)
+        if not hparams.no_graphs:
+            for name, fig in figs.items():
+                model.logger.experiment.log_image(name, fig)
 
 if __name__ == '__main__':
     main()
+    

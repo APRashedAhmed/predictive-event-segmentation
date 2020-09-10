@@ -7,16 +7,17 @@ import numpy as np
 from PIL import Image, ImageOps
 from torch.utils.data import IterableDataset
 
-import prevseg.index as index
+from prevseg import index
+from prevseg.utils import isiterable
 from prevseg.schapiro import walk, graph
 
 logger = logging.getLogger(__name__)
 
 
 class ShapiroFractalsDataset(IterableDataset):
-    modes = set(('random', 'euclidean', 'hamiltonian'))
+    modes = set(('random', 'euclidean', 'hamiltonian', 'custom'))
     def __init__(self, batch_size=32, n_pentagons=3, max_steps=128, n_paths=128,
-                 mapping=None, mode='random', debug=False):
+                 mapping=None, mode='random', debug=False, custom_path=None):
         self.batch_size = batch_size
         self.n_pentagons = n_pentagons
         self.max_steps = max_steps
@@ -24,7 +25,14 @@ class ShapiroFractalsDataset(IterableDataset):
         self.mapping = mapping
         self.mode = mode
         self.debug = debug
+        self.custom_path = custom_path
         assert self.mode in self.modes
+        if self.mode == 'custom':
+            assert self.custom_path is not None and isiterable(self.custom_path)
+            assert mapping is not None
+            self.batch_size = 1
+            self.n_paths = 1
+            self.max_steps = len(self.custom_path)
         
         self.G = graph.schapiro_graph(n_pentagons=n_pentagons)
         
@@ -62,6 +70,8 @@ class ShapiroFractalsDataset(IterableDataset):
             iter_walk = walk.walk_euclidean(self.G)
         elif self.mode == 'hamiltonian':
             iter_walk = walk.walk_hamiltonian(self.G)
+        elif self.mode == 'custom':
+            iter_walk = zip([self.custom_path, self.custom_path]) # match api
 
         for sample in iter_walk:
             yield self.array_data[sample[0]], sample[0]
