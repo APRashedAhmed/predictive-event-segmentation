@@ -67,6 +67,10 @@ def main():
     array_vector_embeddings = np.array([np.array(vec)
                                         for vec in list_vector_embeddings])
 
+    # Normalize the vectors
+    array_vector_embeddings -= array_vector_embeddings.mean()
+    array_vector_embeddings /= array_vector_embeddings.var()
+
     # Save the embeddings
     save_path = index.DIR_SCH / 'abstract_discs_embedded/'
     if not save_path.exists():

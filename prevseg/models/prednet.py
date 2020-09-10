@@ -20,7 +20,7 @@ import prevseg.datasets.breakfast as bk
 import prevseg.datasets.schapiro as sch
 from prevseg.utils import child_argparser
 from prevseg.torch.lstm_cell import LSTM
-from prevseg.torch.activations import SatLU
+# from prevseg.torch.activations import SatLU
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class PredCell(object):
                       self.a_channels[self.layer_num]),
             nn.ReLU())
         if self.layer_num == 0:
-            dense.add_module('satlu', SatLU())
+            dense.add_module('tanh', nn.Tanh())
         return dense
         
     def build_update(self):
