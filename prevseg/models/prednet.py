@@ -20,7 +20,6 @@ import prevseg.datasets.breakfast as bk
 import prevseg.datasets.schapiro as sch
 from prevseg.utils import child_argparser
 from prevseg.torch.lstm_cell import LSTM
-# from prevseg.torch.activations import SatLU
 
 logger = logging.getLogger(__name__)
 

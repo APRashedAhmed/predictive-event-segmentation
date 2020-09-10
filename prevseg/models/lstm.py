@@ -7,7 +7,6 @@ import torch.nn as nn
 
 import prevseg.models.prednet as pn
 import prevseg.constants as const
-from prevseg.torch.activations import SatLU
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ class LSTMStacked(pn.PredNetTrackedSchapiro):
             nn.Linear(self.r_channels[hparams.n_layers - 1],
                       self.a_channels[0]),
             nn.ReLU())
-        self.dense.add_module('satlu', SatLU())
+        self.dense.add_module('tanh', nn.Tanh())
         
         if torch.__version__ == '1.4.0' and torch.cuda.is_available():
             self.dense = self.dense.cuda()

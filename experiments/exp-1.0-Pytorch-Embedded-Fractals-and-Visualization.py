@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--no_test', action='store_true')
     parser.add_argument('--user', type=str, default='aprashedahmed')
     parser.add_argument('--project', type=str, default='sandbox')
+    parser.add_argument('--tags', nargs='+')
 
     parser.add_argument('--n_workers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=25)
@@ -88,7 +89,7 @@ def main():
         project_name=f"{hparams.user}/{hparams.project}",
         experiment_name=f'{hparams.name}_{hparams.exp_name}',
         params=vars(hparams),
-        tags=["pytorch-lightning", "test"],
+        tags=hparams.tags,
     )
 
     # Set the seed
