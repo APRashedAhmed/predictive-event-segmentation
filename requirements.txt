@@ -1,6 +1,5 @@
 jupyterlab
 matplotlib
-watermark
 hydra
 omegaconf
 neptune-client
