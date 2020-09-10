@@ -16,8 +16,8 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from pytorch_lightning.core.decorators import auto_move_data
 
 import prevseg.constants as const
-import prevseg.dataloaders.breakfast as bk
-import prevseg.dataloaders.schapiro as sch
+import prevseg.datasets.breakfast as bk
+import prevseg.datasets.schapiro as sch
 from prevseg.torch.lstm_cell import LSTM
 from prevseg.torch.activations import SatLU
 

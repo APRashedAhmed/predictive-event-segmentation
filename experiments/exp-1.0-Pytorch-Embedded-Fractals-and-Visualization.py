@@ -13,7 +13,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers.neptune import NeptuneLogger
 
 import prevseg.constants as const
-from prevseg import index, models, dataloaders
+from prevseg import index, models, datasets
 
 logger = logging.getLogger(__name__)
 
@@ -61,13 +61,13 @@ def main():
         )
     
     # Check this is correct as well
-    if hasattr(dataloaders, temp_args.dataloader):
-        Dataloader = getattr(dataloaders, temp_args.dataloader)
+    if hasattr(datasets, temp_args.dataloader):
+        Dataloader = getattr(datasets, temp_args.dataloader)
         parser = Dataloader.add_model_specific_args(parser)
     else:
         raise Exception(
             f'Invalid dataloader "{temp_args.dataloader}" passed. Check it is '
-            f'importable: "from prevseg.dataloaders import '
+            f'importable: "from prevseg.datasets import '
             f'{temp_args.dataloader}"'
         )
     

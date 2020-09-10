@@ -9,7 +9,7 @@ import IPython
 import pytorch_lightning as pl
 
 from prevseg import index
-from prevseg.dataloaders import breakfast
+from prevseg.datasets import breakfast
 from prevseg.models import prednet
 
 logger = logging.getLogger(__name__)
