@@ -1,7 +1,8 @@
+import argparse
 import datetime
 import logging
-import argparse
 import socket
+import time
 from pathlib import Path
 from pprint import pprint
 
@@ -18,10 +19,12 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default='PredNetTrackedSchapiro')
+    parser.add_argument('--dataloader', type=str,
+                        default='ShapiroResnetEmbeddingDataset')
     parser.add_argument('--load_model', action='store_true')
     parser.add_argument('--ipy', action='store_true')
-    parser.add_argument('--model', type=str, default='PredNetTrackedSchapiro')
-    parser.add_argument('--dataloader', type=str, default='ShapiroResnetEmbeddingDataset')
+    parser.add_argument('--no_graphs', action='store_true')
 
     parser.add_argument('--n_workers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=25)
@@ -42,7 +45,7 @@ def main():
     parser.add_argument('--save_top_k', type=float, default=1)
     parser.add_argument('--exp_name', type=str, default='')
     parser.add_argument('--name', type=str, default='')
-        
+    
     # Get Model and Dataset specific args
     temp_args, _ = parser.parse_known_args()
     
@@ -51,20 +54,21 @@ def main():
         Model = getattr(models, temp_args.model)
         parser = Model.add_model_specific_args(parser)
     else:
-        raise Exception(f"""
-        Invalid model "{temp_args.model}" passed. Check it is importable:
-        "from prevseg.models import {temp_args.model}"
-        """)
+        raise Exception(
+            f'Invalid model "{temp_args.model}" passed. Check it is importable:'
+            f' "from prevseg.models import {temp_args.model}"'
+        )
     
     # Check this is correct as well
     if hasattr(dataloaders, temp_args.dataloader):
         Dataloader = getattr(dataloaders, temp_args.dataloader)
         parser = Dataloader.add_model_specific_args(parser)
     else:
-        raise Exception(f"""
-        Invalid dataloader "{temp_args.dataloader}" passed. Check it is
-        importable: "from prevseg.dataloaders import {temp_args.dataloader}"
-        """)
+        raise Exception(
+            f'Invalid dataloader "{temp_args.dataloader}" passed. Check it is '
+            f'importable: "from prevseg.dataloaders import '
+            f'{temp_args.dataloader}"'
+        )
     
     # add all the available options to the trainer
     # parser = pl.Trainer.add_argparse_args(parser)
@@ -78,12 +82,15 @@ def main():
 
     # Neptune Logger
     get_logger = lambda : NeptuneLogger(
-        # api_key="ANONYMOUS",
         project_name="aprashedahmed/sandbox",
         experiment_name=f'{hparams.name}_{hparams.exp_name}',
         params=vars(hparams),
-        tags=["pytorch-lightning", "test"]
+        tags=["pytorch-lightning", "test"],
     )
+
+    mapping = {0: '1', 1: '60', 2: '95', 3: '100', 4: '14', 5: '2', 6: '63',
+               7: '58', 8: '96', 9: '55', 10: '99', 11: '50', 12: '7', 13: '89',
+               14: '12'}
 
     if not hparams.load_model:
         # Checkpoint Call back
@@ -92,9 +99,9 @@ def main():
         if not ckpt_dir.exists():
             ckpt_dir.mkdir(parents=True)
         ckpt = pl.callbacks.ModelCheckpoint(
-            filepath=str(
-                ckpt_dir /
-                (hparams.exp_name+'_{global_step:05d}_{epoch:03d}_{val_loss:.3f}')),
+            filepath=str(ckpt_dir /
+                         (hparams.exp_name + \
+                          '_{global_step:05d}_{epoch:03d}_{val_loss:.3f}')),
             verbose=True,
             save_top_k=hparams.save_top_k,
             period=hparams.checkpoint_period,
@@ -117,14 +124,20 @@ def main():
         # Define the model
         model = Model(hparams)
         print(model, flush=True)
+        model.prepare_data(mapping=mapping)
 
-        print('Beginning training', flush=True)
+        print('\nBeginning training:', flush=True)
+        now = datetime.datetime.now()
         # Train the model
         trainer.fit(model)
+        elapsed = datetime.datetime.now() - now
+        elapsed_fstr = time.strftime('%H:%M:%S', time.gmtime(elapsed.seconds))
+        print(f'\nTraining completed! Time Elapsed: {elapsed_fstr}', flush=True)
 
     else:
         # Get all the experiments with the name hparams.name*
-        experiments = list(index.DIR_CHECKPOINTS.glob(f'{hparams.name}_{hparams.exp_name}*'))
+        experiments = list(index.DIR_CHECKPOINTS.glob(
+            f'{hparams.name}_{hparams.exp_name}*'))
 
         # import pdb; pdb.set_trace()
         if len(experiments) > 1:
@@ -137,22 +150,17 @@ def main():
             experiment_newest = experiments[0]
         experiment_newest_best_val = sorted(
             experiment_newest.iterdir(),
-            key=lambda path: float(path.stem.split('val_loss=')[-1]))[0]
-        experiment_newest_best_val
-        # model, trainer = None, None
-        # train_dataloader, val_dataloader = None, None
-        # errors, optimizer = None, None
-        # ckpt = None
-        # train_errors, val_errors = None, None
-        # res = None
-        # gc.collect()
-        # torch.cuda.empty_cache()
+            key=lambda path: float(
+                path.stem.split('val_loss=')[-1].split('_')[0]))[0]
 
         model = Model.load_from_checkpoint(str(experiment_newest_best_val))
-        model.prepare_data()
-        model.cuda()
         model.logger = get_logger()
+        model.prepare_data()
 
+    # Ensure we are in cuda for testing if specified
+    if 'cuda' in hparams.device and torch.cuda.is_available():
+        model.cuda()
+    
     # Define the visualization data
     euclid_nodes = np.array([11, 13, 14, 12, 13, 10, 12, 11, 14,
                              0,  3,  4,  2,  3,  1,  2,  0,  1,  4,
@@ -166,13 +174,15 @@ def main():
     test_data = np.array([model.ds.array_data[n] for n in test_nodes]).reshape((
         1, len(test_nodes), 2048))
 
-    print(test_data.shape,torch.Tensor(test_data).shape)
-
     # Visualize the test data
-    figs = model.visualize(torch.Tensor(test_data), borders)
+    figs = model.visualize(torch.Tensor(test_data), borders=borders)
+    if not hparams.no_graphs:
+        for name, fig in figs.items():
+            model.logger.experiment.log_image(name, fig)
 
+    # End with an ipython shell
     if hparams.ipy:
-        IPython.embed()    
+        IPython.embed()
 
 if __name__ == '__main__':
     main()
