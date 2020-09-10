@@ -30,6 +30,7 @@ class ShapiroFractalsDataset(IterableDataset):
         if self.mode == 'custom':
             assert self.custom_path is not None and isiterable(self.custom_path)
             assert mapping is not None
+            self.batch_size = 1
             self.n_paths = 1
             self.max_steps = len(self.custom_path)
         
@@ -70,7 +71,7 @@ class ShapiroFractalsDataset(IterableDataset):
         elif self.mode == 'hamiltonian':
             iter_walk = walk.walk_hamiltonian(self.G)
         elif self.mode == 'custom':
-            iter_walk = zip([self.custom_path, self.custom_path]) # match api
+            iter_walk = [[s] for s in self.custom_path]
 
         for sample in iter_walk:
             yield self.array_data[sample[0]], sample[0]

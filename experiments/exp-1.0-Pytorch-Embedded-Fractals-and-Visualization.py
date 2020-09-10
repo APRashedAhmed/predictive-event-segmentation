@@ -117,14 +117,15 @@ def main():
         )
 
         now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'Current time: {now}', flush=True)
-        print(f'Running with following hparams:', flush=True)
+        print(f'\nCurrent time: {now}', flush=True)
+        print(f'\nRunning with following hparams:', flush=True)
         pprint(vars(hparams))
 
         # Define the model
         model = Model(hparams)
-        print(model, flush=True)
-        model.prepare_data(mapping=const.DEFAULT_MAPPING)
+        print(f'\nModel being used: \n{model}', flush=True)
+        model.prepare_data(mapping=const.DEFAULT_MAPPING,
+                           val_path=const.DEFAULT_PATH)
 
         print('\nBeginning training:', flush=True)
         now = datetime.datetime.now()
@@ -155,7 +156,8 @@ def main():
 
         model = Model.load_from_checkpoint(str(experiment_newest_best_val))
         model.logger = logger
-        model.prepare_data(mapping=const.DEFAULT_MAPPING)
+        model.prepare_data(mapping=const.DEFAULT_MAPPING,
+                           val_path=const.DEFAULT_PATH)
 
         # Define the trainer
         trainer = pl.Trainer(
