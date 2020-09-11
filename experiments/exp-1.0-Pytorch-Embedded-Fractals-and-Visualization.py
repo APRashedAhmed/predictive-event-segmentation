@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from pprint import pprint
 
+
+import ipdb
 import IPython
 import torch
 import numpy as np
@@ -17,73 +19,7 @@ from prevseg import index, models, datasets
 
 logger = logging.getLogger(__name__)
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='PredNetTrackedSchapiro')
-    parser.add_argument('--dataloader', type=str,
-                        default='ShapiroResnetEmbeddingDataset')
-    parser.add_argument('--load_model', action='store_true')
-    parser.add_argument('--ipy', action='store_true')
-    parser.add_argument('--no_graphs', action='store_true')
-    parser.add_argument('--no_test', action='store_true')
-    parser.add_argument('--user', type=str, default='aprashedahmed')
-    parser.add_argument('--project', type=str, default='sandbox')
-    parser.add_argument('--tags', nargs='+')
-
-    parser.add_argument('--n_workers', type=int, default=4)
-    parser.add_argument('--epochs', type=int, default=25)
-    parser.add_argument('--gpus', type=float, default=1)
-    parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--seed', type=int, default=117)
-    parser.add_argument('--batch_size', type=int, default=256+128)
-    parser.add_argument('--n_val', type=int, default=1)
-
-    parser.add_argument('--dir_checkpoints', type=str,
-                        default=str(index.DIR_CHECKPOINTS))
-    parser.add_argument('--dir_weights', type=str,
-                        default=str(index.DIR_WEIGHTS))
-    parser.add_argument('--dir_logs', type=str,
-                        default=str(index.DIR_LOGS_TB))
-    parser.add_argument('--checkpoint_period', type=float, default=1.0)
-    parser.add_argument('--val_check_interval', type=float, default=1.0)
-    parser.add_argument('--save_top_k', type=float, default=1)
-    parser.add_argument('--exp_name', type=str, default='')
-    parser.add_argument('--name', type=str, default='')
-
-    # Get Model and Dataset specific args
-    temp_args, _ = parser.parse_known_args()
-    
-    # Make sure this is correct
-    if hasattr(models, temp_args.model):
-        Model = getattr(models, temp_args.model)
-        parser = Model.add_model_specific_args(parser)
-    else:
-        raise Exception(
-            f'Invalid model "{temp_args.model}" passed. Check it is importable:'
-            f' "from prevseg.models import {temp_args.model}"'
-        )
-    
-    # Check this is correct as well
-    if hasattr(datasets, temp_args.dataloader):
-        Dataloader = getattr(datasets, temp_args.dataloader)
-        parser = Dataloader.add_model_specific_args(parser)
-    else:
-        raise Exception(
-            f'Invalid dataloader "{temp_args.dataloader}" passed. Check it is '
-            f'importable: "from prevseg.datasets import '
-            f'{temp_args.dataloader}"'
-        )
-    
-    # add all the available options to the trainer
-    # parser = pl.Trainer.add_argparse_args(parser)
-    hparams = parser.parse_args()
-    
-    # Get or create a name
-    hparams.name = Model.name if not hparams.name else hparams.name
-
-    # Get the hostname for book keeping
-    hparams.hostname = socket.gethostname()
-
+def main(hparams):
     # Neptune Logger
     logger = NeptuneLogger(
         project_name=f"{hparams.user}/{hparams.project}",
@@ -197,5 +133,83 @@ def main():
                 model.logger.experiment.log_image(name, fig)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default='PredNetTrackedSchapiro')
+    parser.add_argument('--dataloader', type=str,
+                        default='ShapiroResnetEmbeddingDataset')
+    parser.add_argument('--load_model', action='store_true')
+    parser.add_argument('--ipy', action='store_true')
+    parser.add_argument('--no_graphs', action='store_true')
+    parser.add_argument('--no_test', action='store_true')
+    parser.add_argument('--user', type=str, default='aprashedahmed')
+    parser.add_argument('--project', type=str, default='sandbox')
+    parser.add_argument('--tags', nargs='+')
+    parser.add_argument('--test_run', action='store_true')
+    parser.add_argument('--ipdb', action='store_true')
+
+    parser.add_argument('--n_workers', type=int, default=1)
+    parser.add_argument('--epochs', type=int, default=25)
+    parser.add_argument('--gpus', type=float, default=1)
+    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--seed', type=int, default=117)
+    parser.add_argument('--batch_size', type=int, default=256+128)
+    parser.add_argument('--n_val', type=int, default=1)
+
+    parser.add_argument('--dir_checkpoints', type=str,
+                        default=str(index.DIR_CHECKPOINTS))
+    parser.add_argument('--dir_weights', type=str,
+                        default=str(index.DIR_WEIGHTS))
+    parser.add_argument('--dir_logs', type=str,
+                        default=str(index.DIR_LOGS_TB))
+    parser.add_argument('--checkpoint_period', type=float, default=1.0)
+    parser.add_argument('--val_check_interval', type=float, default=1.0)
+    parser.add_argument('--save_top_k', type=float, default=1)
+    parser.add_argument('--exp_name', type=str, default='')
+    parser.add_argument('--name', type=str, default='')
+
+    # Get Model and Dataset specific args
+    temp_args, _ = parser.parse_known_args()
     
+    # Make sure this is correct
+    if hasattr(models, temp_args.model):
+        Model = getattr(models, temp_args.model)
+        parser = Model.add_model_specific_args(parser)
+    else:
+        raise Exception(
+            f'Invalid model "{temp_args.model}" passed. Check it is importable:'
+            f' "from prevseg.models import {temp_args.model}"'
+        )
+    
+    # Check this is correct as well
+    if hasattr(datasets, temp_args.dataloader):
+        Dataloader = getattr(datasets, temp_args.dataloader)
+        parser = Dataloader.add_model_specific_args(parser)
+    else:
+        raise Exception(
+            f'Invalid dataloader "{temp_args.dataloader}" passed. Check it is '
+            f'importable: "from prevseg.datasets import '
+            f'{temp_args.dataloader}"'
+        )
+
+    # Get the parser
+    hparams = parser.parse_args()
+
+    # If we are test-running, set dataset params to be very short
+    if hparams.test_run:
+        hparams.epochs = 2
+        hparams.n_paths = 2
+        hparams.exp_name += '_test_exp'
+        hparams.project = sandbox
+    
+    # Get or create a name
+    hparams.name = Model.name if not hparams.name else hparams.name
+
+    # Get the hostname for book keeping
+    hparams.hostname = socket.gethostname()
+
+    # If running with test_run or ipdb
+    if hparams.test_run or hparams.ipdb:
+        with ipdb.launch_ipdb_on_exception():
+            main(hparams)
+    else:
+        main(hparams)
