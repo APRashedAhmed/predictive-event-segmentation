@@ -61,12 +61,12 @@ class PredCell(object):
         return recurrent
     
     def build_dense(self):
-        dense = nn.Sequential(
-            nn.Linear(self.r_channels[self.layer_num],
-                      self.a_channels[self.layer_num]),
-            nn.ReLU())
+        dense = nn.Sequential(nn.Linear(self.r_channels[self.layer_num],
+                                        self.a_channels[self.layer_num]))
         if self.layer_num == 0:
             dense.add_module('tanh', nn.Tanh())
+        else:
+            dense.add_module('relu', nn.ReLU())
         return dense
         
     def build_update(self):

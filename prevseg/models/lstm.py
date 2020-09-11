@@ -71,8 +71,7 @@ class LSTMStacked(pn.PredNetTrackedSchapiro):
         self.dense = nn.Sequential(
             nn.Linear(self.r_channels[hparams.n_layers - 1],
                       self.a_channels[0]),
-            nn.ReLU())
-        self.dense.add_module('tanh', nn.Tanh())
+            nn.Tanh())
         
         if torch.__version__ == '1.4.0' and torch.cuda.is_available():
             self.dense = self.dense.cuda()
