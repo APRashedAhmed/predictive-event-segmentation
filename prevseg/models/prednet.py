@@ -127,7 +127,7 @@ class PredNet(pl.LightningModule):
         self.a_channels = a_channels
         self.r_channels = r_channels
         self.CellClass = CellClass
-
+        
         self.dev = 'cuda:0'
         
         # if self.hparams.device == 'cuda' and torch.cuda.is_available():
@@ -363,7 +363,7 @@ class PredNet(pl.LightningModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = child_argparser(parent_parser)
-        parser.add_argument('--n_layers', type=int, default=4)
+        parser.add_argument('--n_layers', type=int, default=2)
         parser.add_argument('--lr', type=float, default=0.001)        
         parser.add_argument('--output_mode', type=str, default='error')
         parser.add_argument('--layer_loss_mode', type=str, default='first')
@@ -434,12 +434,11 @@ class PredCellTracked(PredCell):
             
 class PredNetTracked(PredNet):
     name = 'prednet_tracked'
+    track = ('hidden_diff', 'error_diff', 'representation_diff')
     def __init__(self, hparams, track=None, CellClass=PredCellTracked, *args,
                  **kwargs):
         super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
-        self.track = track or ['hidden_diff',
-                               'error_diff',
-                               'representation_diff']
+        self.track = track or self.track
         self.run_num = None
         self.tb_labels = None
         
@@ -592,6 +591,7 @@ class PredNetTracked(PredNet):
                                                      borders=borders)})
         return figs
 
+    
 class PredNetTrackedSchapiro(PredNetTracked):
     name = 'prednet_tracked_schapiro'
     def prepare_data(self, mapping=None, val_path=None):
