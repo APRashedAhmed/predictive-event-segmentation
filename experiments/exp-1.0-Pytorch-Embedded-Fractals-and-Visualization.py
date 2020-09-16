@@ -199,7 +199,7 @@ if __name__ == '__main__':
         hparams.epochs = 2
         hparams.n_paths = 2
         hparams.exp_name += '_test_exp'
-        hparams.project = sandbox
+        hparams.project = 'sandbox'
     
     # Get or create a name
     hparams.name = Model.name if not hparams.name else hparams.name
