@@ -79,6 +79,6 @@ class SRN(LSTMStackedDense):
         parser = child_argparser(LSTMStackedDense.add_model_specific_args(
             parent_parser))
         parser.add_argument('--n_layers', type=int, default=1)
-        parser.add_argument('--batch_size', type=int, default=512+128+64+32)
+        parser.add_argument('--batch_size', type=int, default=512+128+64)
         return parser
         
