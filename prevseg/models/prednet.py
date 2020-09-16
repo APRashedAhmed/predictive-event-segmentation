@@ -403,11 +403,7 @@ class PredCellTracked(PredCell):
         if 'hidden_diff' in self.parent.track and output_mode == 'eval':
             diff = torch.mean(
                 (H[1].permute(1, 0, 2) - self.H[1].permute(1, 0, 2))**2).detach()
-            # diff_dict = {f'{self.parent.tb_labels[i]}' : diff
-            #              for i, diff in enumerate(diffs)}
             scalar_name = f'hidden_diff_layer_{self.layer_num}'
-            # scalar_name = f'test_hidden_diff_{self.parent.run_num}/' \
-            #     'layer_{self.layer_num}/'
             self.parent.logger.experiment.log_metric(scalar_name, diff)
             self.hidden_diff_list.append(diff)
 
