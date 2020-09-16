@@ -57,6 +57,7 @@ class SRNCell(LSTMCellDense):
         
 
 class SRN(LSTMStackedDense):
+    name = 'srn'
     def __init__(self, hparams, CellClass=SRNCell, *args, **kwargs):
         super().__init__(hparams=hparams, CellClass=CellClass, *args, **kwargs)
 
