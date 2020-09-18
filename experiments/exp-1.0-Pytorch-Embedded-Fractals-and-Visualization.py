@@ -151,6 +151,8 @@ if __name__ == '__main__':
     parser.add_argument('--user', type=str, default='aprashedahmed')
     parser.add_argument('--project', type=str, default='sandbox')
     parser.add_argument('--tags', nargs='+')
+    parser.add_argument('--test_epochs', type=int, default=2)
+    parser.add_argument('--test_n_paths', type=int, default=2)
     parser.add_argument('--test_run', action='store_true')
     parser.add_argument('--ipdb', action='store_true')
 
@@ -202,10 +204,14 @@ if __name__ == '__main__':
     # Get the parser
     hparams = parser.parse_args()
 
+    # Get or create names
+    hparams.name = Model.name if not hparams.name else hparams.name
+    hparams.exp_name = hparams.exp_name or hparams.name
+
     # If we are test-running, set dataset params to be very short
     if hparams.test_run:
-        hparams.epochs = 2
-        hparams.n_paths = 2
+        hparams.epochs = hparams.test_epochs
+        hparams.n_paths = hparams.test_n_paths
         hparams.exp_name += '_test_exp'
         hparams.project = 'sandbox'
 
@@ -213,9 +219,6 @@ if __name__ == '__main__':
     hparams.seed = None if 'None' in hparams.seed or hparams.seed == 'random' \
         else int(hparams.seed)
     
-    # Get or create a name
-    hparams.name = Model.name if not hparams.name else hparams.name
-
     # Get the hostname for book keeping
     hparams.hostname = socket.gethostname()
 
