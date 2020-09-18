@@ -4,6 +4,7 @@ from argparse import Namespace
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
 import prevseg.models.prednet as pn
@@ -76,7 +77,7 @@ class LSTMCellDense(LSTMCell, pn.PredCellTracked):
 
 class LSTMStacked(pn.PredNetTrackedSchapiro):
     name = 'lstmstacked'
-    track = ('representation_diff', 'hidden_diff')
+    track = ('representation', 'hidden')
     def __init__(self, hparams, CellClass=LSTMCell, a_channels=None,
                  r_channels=None, *args, **kwargs):
         if not isinstance(hparams, Namespace):
@@ -116,8 +117,8 @@ class LSTMStacked(pn.PredNetTrackedSchapiro):
             self.A = self.frame                
             self._cell_ops()
             
-            pos = nn.functional.relu(self.A_hat - self.frame)
-            neg = nn.functional.relu(self.frame - self.A_hat)
+            pos = F.relu(self.A_hat - self.frame)
+            neg = F.relu(self.frame - self.A_hat)
             self.E = torch.cat([pos, neg], 2)
             
             if self.output_mode == 'error':
@@ -138,11 +139,14 @@ class LSTMStacked(pn.PredNetTrackedSchapiro):
             else:
                 hx = cell.H
 
-            cell.R, cell.H = cell.recurrent(self.A, hx)
+            R, H = cell.recurrent(self.A, hx)
+            
             # Optional tracking
-            cell.track_hidden(self.output_mode, hx)
-            cell.track_representation(self.output_mode, self.A)
+            cell.track_metric_diff(R, cell.R, 'representation')
+            cell.track_metric_diff(H[1], cell.H[1], 'hidden')
 
+            cell.R, cell.H = R, H
+                
             if i < self.hparams.n_layers - 1:
                 self.A = cell.R
             else:
@@ -175,11 +179,14 @@ class LSTMStackedDense(LSTMStacked):
             else:
                 hx = cell.H
 
-            cell.R, cell.H = cell.recurrent(self.A, hx)
-            # Optional tracking
-            cell.track_hidden(self.output_mode, hx)
-            cell.track_representation(self.output_mode, self.A)
+            R, H = cell.recurrent(self.A, hx)
             
+            # Optional tracking
+            cell.track_metric_diff(R, cell.R, 'representation')
+            cell.track_metric_diff(H[1], cell.H[1], 'hidden')
+
+            cell.R, cell.H = R, H
+                        
             if i < self.hparams.n_layers - 1:
                 self.A = cell.dense(cell.R)
             else:

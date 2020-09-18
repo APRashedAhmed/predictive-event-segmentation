@@ -378,59 +378,32 @@ class PredCellTracked(PredCell):
         super().__init__(parent, layer_num, hparams, a_channels, r_channels,
                          *args, **kwargs)
         # Tracking
-        self.hidden_full_list = []
         self.hidden_diff_list = []
-        self.representation_full_list = []
         self.representation_diff_list = []
-        self.error_full_list = []
         self.error_diff_list = []
 
-    def track_representation(self, output_mode, R):
-        # Track representation states if desired
-        if 'representation_full' in self.parent.track and output_mode == 'eval':
-            self.representation_full_list.append(R.permute(1, 0, 2))
-        if 'representation_diff' in self.parent.track and output_mode == 'eval':
+    def track_metric_diff(self, m1, m2, name, output_mode=None):
+        # Steal parent's output mode if there is one and None is passed
+        if self.parent is not None and not output_mode:
+            output_mode = self.parent.output_mode
+            
+        if name in self.parent.track and output_mode == 'eval':
             diff = torch.mean(
-                (R.permute(1, 0, 2) - self.R.permute(1, 0, 2))**2).detach()
-            scalar_name = f'representation_diff_layer_{self.layer_num}'
+                (m1.permute(1, 0, 2) - m2.permute(1, 0, 2))**2).detach()
+            scalar_name = f'{name}_diff_layer_{self.layer_num}'
             self.parent.logger.experiment.log_metric(scalar_name, diff)
-            self.representation_diff_list.append(diff)
-
-    def track_hidden(self, output_mode, H):
-        # Track hidden states if desired
-        if 'hidden_full' in self.parent.track and output_mode == 'eval':
-            self.hidden_full_list.append(H[1].permute(1, 0, 2))
-        if 'hidden_diff' in self.parent.track and output_mode == 'eval':
-            diff = torch.mean(
-                (H[1].permute(1, 0, 2) - self.H[1].permute(1, 0, 2))**2).detach()
-            scalar_name = f'hidden_diff_layer_{self.layer_num}'
-            self.parent.logger.experiment.log_metric(scalar_name, diff)
-            self.hidden_diff_list.append(diff)
-
-    def track_error(self, output_mode, E):
-        # Track hidden states if desired
-        if 'error_full' in self.parent.track and output_mode == 'eval':
-            self.error_full_list.append(E.permute(1, 0, 2))
-        if 'error_diff' in self.parent.track and output_mode == 'eval':
-            diff = torch.mean(
-                (E.permute(1, 0, 2) - self.E.permute(1, 0, 2))**2).detach()
-            scalar_name = f'error_diff_layer_{self.layer_num}'
-            self.parent.logger.experiment.log_metric(scalar_name, diff)
-            self.error_diff_list.append(diff)
+            getattr(self, f'{name}_diff_list').append(diff)            
 
     def reset(self, *args, **kwargs):
-        self.hidden_full_list = []
         self.hidden_diff_list = []
-        self.representation_full_list = []
         self.representation_diff_list = []        
-        self.error_full_list = []
         self.error_diff_list = []
         return super().reset(*args, **kwargs)
         
             
 class PredNetTracked(PredNet):
     name = 'prednet_tracked'
-    track = ('hidden_diff', 'error_diff', 'representation_diff')
+    track = ('hidden', 'error', 'representation')
     def __init__(self, hparams, track=None, CellClass=PredCellTracked, *args,
                  **kwargs):
         super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
@@ -458,8 +431,8 @@ class PredNetTracked(PredNet):
             R, H = cell.recurrent(E, hx)
 
             # Optional tracking
-            cell.track_representation(self.output_mode, R)
-            cell.track_hidden(self.output_mode, H)
+            cell.track_metric_diff(R, cell.R, 'representation')
+            cell.track_metric_diff(H[1], cell.H[1], 'hidden') # Just C array
 
             # Update cell state
             cell.R, cell.H = R, H
@@ -479,11 +452,11 @@ class PredNetTracked(PredNet):
             E = torch.cat([pos, neg], 2)
             
             # Optional Error tracking
-            cell.track_error(self.output_mode, E)
-
+            cell.track_metric_diff(E, cell.E, 'error')
+            
             # Update cell error
             cell.E = E
-
+ 
             # If not last layer, update stored A
             if cell.layer_num < self.n_layers - 1:
                 self.A = cell.update_a(E)
@@ -530,7 +503,7 @@ class PredNetTracked(PredNet):
         outputs = {}
         for tracked in self.track:
             outputs[tracked] = torch.cat(
-                [torch.Tensor(getattr(cell, tracked+'_list')).unsqueeze(0)
+                [torch.Tensor(getattr(cell, tracked+'_diff_list')).unsqueeze(0)
                  for cell in self.cells])
         return outputs
 
