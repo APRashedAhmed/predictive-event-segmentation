@@ -63,9 +63,16 @@ def main(hparams):
         # Define the model
         model = Model(hparams)
         print(f'\nModel being used: \n{model}', flush=True)
-        model.prepare_data(mapping=const.DEFAULT_MAPPING,
-                           val_path=const.DEFAULT_PATH)
 
+        if hparams.mapping == 'default':
+            mapping = const.DEFAULT_MAPPING
+        elif hparams.mapping == 'random':
+            mapping = None
+        else:
+            raise ValueError(f'Invalid entry for mapping: {hparams.mapping}')
+        model.prepare_data(mapping=mapping,
+                           val_path=const.DEFAULT_PATH)
+ 
         print('\nBeginning training:', flush=True)
         now = datetime.datetime.now()
         # Train the model
@@ -83,7 +90,7 @@ def main(hparams):
         if len(experiments) > 1:
             # Get the newest exp by v number
             experiment_newest = sorted(
-                experiments, 
+                experiments,
                 key=lambda path: int(path.stem.split('_')[-1][1:]))[-1]
             # Get the model with the best (lowest) val_loss
         else:
@@ -91,7 +98,7 @@ def main(hparams):
         experiment_newest_best_val = sorted(
             experiment_newest.iterdir(),
             key=lambda path: float(
-                path.stem.split('val_loss=')[-1].split('_')[0]))[0]        
+                path.stem.split('val_loss=')[-1].split('_')[0]))[0]
 
         model = Model.load_from_checkpoint(str(experiment_newest_best_val))
         model.logger = logger
@@ -151,9 +158,10 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=25)
     parser.add_argument('--gpus', type=float, default=1)
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--seed', type=int, default=117)
+    parser.add_argument('--seed', type=str, default='117')
     parser.add_argument('--batch_size', type=int, default=256+128)
     parser.add_argument('--n_val', type=int, default=1)
+    parser.add_argument('--mapping', type=str, default='default')
 
     parser.add_argument('--dir_checkpoints', type=str,
                         default=str(index.DIR_CHECKPOINTS))
@@ -190,7 +198,7 @@ if __name__ == '__main__':
             f'importable: "from prevseg.datasets import '
             f'{temp_args.dataloader}"'
         )
-
+    
     # Get the parser
     hparams = parser.parse_args()
 
@@ -200,6 +208,10 @@ if __name__ == '__main__':
         hparams.n_paths = 2
         hparams.exp_name += '_test_exp'
         hparams.project = 'sandbox'
+
+    # Seed is a string to allow for 'None' as an input. Convert to a number
+    hparams.seed = None if 'None' in hparams.seed or hparams.seed == 'random' \
+        else int(hparams.seed)
     
     # Get or create a name
     hparams.name = Model.name if not hparams.name else hparams.name
