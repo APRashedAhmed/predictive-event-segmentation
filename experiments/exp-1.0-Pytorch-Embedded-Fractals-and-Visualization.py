@@ -19,7 +19,19 @@ from prevseg import index, models, datasets
 
 logger = logging.getLogger(__name__)
 
-def main(hparams):
+def main(hparams, Model, Dataset):
+    # Set the seed
+    hparams.seed = pl.seed_everything(hparams.seed)
+
+    # Turn the string entry for mapping into a dict (that is also a str)
+    if hparams.mapping == 'default':
+        hparams.mapping = const.DEFAULT_MAPPING
+    elif hparams.mapping == 'random':
+        hparams.mapping = str(Dataset.random_mapping(
+            n_pentagons=hparams.n_pentagons))
+    else:
+        raise ValueError(f'Invalid entry for mapping: {hparams.mapping}')
+    
     # Neptune Logger
     logger = NeptuneLogger(
         project_name=f"{hparams.user}/{hparams.project}",
@@ -27,10 +39,7 @@ def main(hparams):
         params=vars(hparams),
         tags=hparams.tags,
     )
-
-    # Set the seed
-    pl.seed_everything(hparams.seed)
-
+    
     if not hparams.load_model:
         # Checkpoint Call back
         ckpt_dir = Path(hparams.dir_checkpoints) \
@@ -64,13 +73,7 @@ def main(hparams):
         model = Model(hparams)
         print(f'\nModel being used: \n{model}', flush=True)
 
-        if hparams.mapping == 'default':
-            mapping = const.DEFAULT_MAPPING
-        elif hparams.mapping == 'random':
-            mapping = None
-        else:
-            raise ValueError(f'Invalid entry for mapping: {hparams.mapping}')
-        model.prepare_data(mapping=mapping,
+        model.prepare_data(mapping=eval(hparams.mapping),
                            val_path=const.DEFAULT_PATH)
  
         print('\nBeginning training:', flush=True)
@@ -102,7 +105,8 @@ def main(hparams):
 
         model = Model.load_from_checkpoint(str(experiment_newest_best_val))
         model.logger = logger
-        model.prepare_data(mapping=const.DEFAULT_MAPPING,
+        ## LOOK AT THIS LATER
+        model.prepare_data(mapping=eval(hparams.mapping),
                            val_path=const.DEFAULT_PATH)
 
         # Define the trainer
@@ -124,14 +128,8 @@ def main(hparams):
         torch_data = torch.Tensor(test_data)
 
         # Get the model outputs
-        outs = model.forward(torch_data,
-                            output_mode='eval',
-                            run_num='fwd_rev', 
-                            tb_labels=['nodes'])
-        outs.update({'error' : model.forward(torch_data,
-                                            output_mode='error',
-                                            run_num='fwd_rev', 
-                                            tb_labels=['nodes'])})
+        outs = model.forward(torch_data, output_mode='eval')
+        outs.update({'error' : model.forward(torch_data, output_mode='error')})
         
         # Visualize the test data
         figs = model.visualize(outs, borders=const.DEFAULT_BORDERS)
@@ -142,8 +140,8 @@ def main(hparams):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='PredNetTrackedSchapiro')
-    parser.add_argument('--dataloader', type=str,
-                        default='ShapiroResnetEmbeddingDataset')
+    parser.add_argument('--dataset', type=str,
+                        default='SchapiroResnetEmbeddingDataset')
     parser.add_argument('--load_model', action='store_true')
     parser.add_argument('--ipy', action='store_true')
     parser.add_argument('--no_graphs', action='store_true')
@@ -160,10 +158,10 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=25)
     parser.add_argument('--gpus', type=float, default=1)
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--seed', type=str, default='117')
+    parser.add_argument('--seed', type=str, default='random')
     parser.add_argument('--batch_size', type=int, default=256+128)
     parser.add_argument('--n_val', type=int, default=1)
-    parser.add_argument('--mapping', type=str, default='default')
+    parser.add_argument('--mapping', type=str, default='random')
 
     parser.add_argument('--dir_checkpoints', type=str,
                         default=str(index.DIR_CHECKPOINTS))
@@ -181,17 +179,16 @@ if __name__ == '__main__':
     temp_args, _ = parser.parse_known_args()
 
     # Make sure this is correct
-    if hasattr(datasets, temp_args.dataloader):
-        Dataloader = getattr(datasets, temp_args.dataloader)
-        parser = Dataloader.add_model_specific_args(parser)
+    if hasattr(datasets, temp_args.dataset):
+        Dataset = getattr(datasets, temp_args.dataset)
+        parser = Dataset.add_dataset_specific_args(parser)
     else:
         raise Exception(
-            f'Invalid dataloader "{temp_args.dataloader}" passed. Check it is '
-            f'importable: "from prevseg.datasets import '
-            f'{temp_args.dataloader}"'
+            f'Invalid dataset "{temp_args.dataset}" passed. Check it is '
+            f'importable: "from prevseg.datasets import {temp_args.dataset}"'
         )
 
-    # Get temp args now with dataset args
+    # Get temp args now with dataset args added
     temp_args, _ = parser.parse_known_args()
     
     # Check this is correct as well
@@ -228,6 +225,6 @@ if __name__ == '__main__':
     # If running with test_run or ipdb
     if hparams.test_run or hparams.ipdb:
         with ipdb.launch_ipdb_on_exception():
-            main(hparams)
+            main(hparams, Model, Dataset)
     else:
-        main(hparams)
+        main(hparams, Model, Dataset)

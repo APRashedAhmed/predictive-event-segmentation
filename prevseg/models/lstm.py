@@ -102,10 +102,7 @@ class LSTMStacked(pn.PredNetTrackedSchapiro):
         return nn.Sequential(nn.Linear(r_channels, a_channels), nn.Tanh())
 
     @auto_move_data
-    def forward(self, input, output_mode=None, track=None, run_num=None,
-                tb_labels=None):
-        self.run_num = run_num or self.run_num
-        self.tb_labels = tb_labels or self.tb_labels
+    def forward(self, input, output_mode=None):
         self.output_mode = output_mode or self.output_mode
         _, time_steps, *_ = self.check_input_shape(input)
         

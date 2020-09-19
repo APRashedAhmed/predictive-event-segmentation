@@ -8,60 +8,60 @@ from PIL import Image, ImageOps
 from torch.utils.data import IterableDataset
 
 from prevseg import index
-from prevseg.utils import isiterable
+from prevseg.utils import isiterable, child_argparser
 from prevseg.schapiro import walk, graph
 
 logger = logging.getLogger(__name__)
 
 
-class ShapiroFractalsDataset(IterableDataset):
+class SchapiroFractalsDataset(IterableDataset):
     modes = set(('random', 'euclidean', 'hamiltonian', 'custom'))
     def __init__(self, batch_size=32, n_pentagons=3, max_steps=128, n_paths=128,
-                 mapping=None, mode='random', debug=False, custom_path=None):
+                 mapping=None, mode='random', debug=False, custom_path=None,
+                 dir_data=index.DIR_SCH_FRACTALS, verbose=False):            
+        super().__init__()
         self.batch_size = batch_size
         self.n_pentagons = n_pentagons
         self.max_steps = max_steps
         self.n_paths = n_paths
-        self.mapping = mapping
         self.mode = mode
         self.debug = debug
         self.custom_path = custom_path
+        self.verbose = True if self.debug else verbose
+
+        self.dir_data = dir_data
+        assert self.dir_data.exists()        
+
         assert self.mode in self.modes
         if self.mode == 'custom':
             assert self.custom_path is not None and isiterable(self.custom_path)
-            assert mapping is not None
+            assert mapping is not None # Mapping the input
             self.batch_size = 1
             self.n_paths = 1
             self.max_steps = len(self.custom_path)
+
+        self.G = graph.schapiro_graph(n_pentagons=n_pentagons)            
+
+        self.mapping = mapping or self.random_mapping(self.dir_data,
+                                                      self.n_pentagons,
+                                                      self.G)
+        if self.verbose:
+            print(f'Created mapping as follows:\n{self.mapping}')
         
-        self.G = graph.schapiro_graph(n_pentagons=n_pentagons)
-        
-        self.load_node_stimuli()
-        
-        self.mapping = {node : path.stem
-                        for node, path in zip(range(len(self.G.nodes)),
-                                              self.paths_data)}
-        print(f'Created mapping as follows:\n{self.mapping}')
+        self.array_data = self.load_node_stimuli()
         
         if self.debug:
             self.sample_transform = lambda sample : sample
         else:
             self.sample_transform = lambda sample : self.array_data[sample]
-        super().__init__()
         
-    def load_node_stimuli(self):
-        # Load the fractal images into memory
-        assert index.DIR_SCH_FRACTALS.exists()
-        if self.mapping:
-            self.paths_data = [index.DIR_SCH_FRACTALS / (name+'.tiff')
-                               for name in self.mapping.values()]
-        else:
-            paths_data = list(index.DIR_SCH_FRACTALS.iterdir())
-            np.random.shuffle(paths_data)
-            self.paths_data = paths_data[:5*self.n_pentagons]
-        self.array_data = np.array(
-            [np.array(ImageOps.grayscale(Image.open(str(path))))
-             for path in self.paths_data])
+    def load_node_stimuli(self, suffix=None):
+        suffix = suffix or '.tiff'
+        # Load the fractal images into memory            
+        return {node : ImageOps.grayscale(Image.open(
+            str(self.dir_data/(name + suffix))))
+                for node, name in self.mapping.items()
+        }
         
     def iter_single_sample(self): 
         if self.mode == 'random':
@@ -92,7 +92,7 @@ class ShapiroFractalsDataset(IterableDataset):
         return self.iter_batch_dataset()
     
     @staticmethod
-    def add_model_specific_args(parent_parser):
+    def add_dataset_specific_args(parent_parser):
         parser = argparse.ArgumentParser(parents=[parent_parser],
                                          add_help=False)
         parser.add_argument('--input_size', type=int, default=3*128*160)
@@ -102,28 +102,34 @@ class ShapiroFractalsDataset(IterableDataset):
         parser.add_argument('--n_pentagons', type=int, default=3)
         return parser
 
+    @staticmethod
+    def random_mapping(dir_data=index.DIR_SCH_FRACTALS, n_pentagons=3, G=None):
+        dir_data = Path(dir_data)
+        paths_all_data = list(dir_data.iterdir())
+        np.random.shuffle(paths_all_data)
+        paths_mapping_data = paths_all_data[:5*n_pentagons]
+        
+        if not G:
+            G = graph.schapiro_graph(n_pentagons=n_pentagons)
+        
+        return {node : path.stem
+                for node, path in zip(range(len(G.nodes)),
+                                      paths_mapping_data)}
+
     
-class ShapiroResnetEmbeddingDataset(ShapiroFractalsDataset):
-    def load_node_stimuli(self):
-        # Load the fractal images into memory
-        assert index.DIR_SCH_FRACTALS.exists()
-        if self.mapping:
-            self.paths_data = [index.DIR_SCH_FRACTALS_EMB / (name+'.npy')
-                               for name in self.mapping.values()]
-        else:
-            paths_data = list(index.DIR_SCH_FRACTALS_EMB.iterdir())
-            np.random.shuffle(paths_data)
-            self.paths_data = paths_data[:5*self.n_pentagons]
-        self.array_data = np.array(
-            [np.array(np.load(str(path)))
-             for path in self.paths_data])    
+class SchapiroResnetEmbeddingDataset(SchapiroFractalsDataset):
+    def __init__(self, dir_data=index.DIR_SCH_FRACTALS_EMB, *args, **kwargs):
+        super().__init__(dir_data=dir_data, *args, **kwargs)
+
+    def load_node_stimuli(self, suffix=None):
+        suffix = suffix or '.npy'
+        # Load the fractal images into memory            
+        return {node : np.load(str(self.dir_data/(name + suffix)))
+                for node, name in self.mapping.items()}
 
     @staticmethod
-    def add_model_specific_args(parent_parser):
-        parent_cls_parser = ShapiroFractalsDataset.add_model_specific_args(
-            parent_parser)
-        parser = argparse.ArgumentParser(parents=[parent_cls_parser],
-                                         add_help=False,
-                                         conflict_handler='resolve')
+    def add_dataset_specific_args(parent_parser):
+        parser = child_argparser(
+            SchapiroFractalsDataset.add_dataset_specific_args(parent_parser))
         parser.add_argument('--input_size', type=int, default=2048)
         return parser

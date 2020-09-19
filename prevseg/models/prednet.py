@@ -569,14 +569,14 @@ class PredNetTracked(PredNet):
 class PredNetTrackedSchapiro(PredNetTracked):
     name = 'prednet_tracked_schapiro'
     def prepare_data(self, mapping=None, val_path=None):
-        self.ds = self.ds or sch.ShapiroResnetEmbeddingDataset(
+        self.ds = self.ds or sch.SchapiroResnetEmbeddingDataset(
             batch_size=self.batch_size, 
             n_pentagons=self.hparams.n_pentagons, 
             max_steps=self.hparams.max_steps, 
             n_paths=self.hparams.n_paths,
             mapping=mapping,
         )
-        self.ds_val = self.ds_val or sch.ShapiroResnetEmbeddingDataset(
+        self.ds_val = self.ds_val or sch.SchapiroResnetEmbeddingDataset(
             n_pentagons=self.hparams.n_pentagons,
             batch_size=self.batch_size, 
             n_paths=self.hparams.n_val,
