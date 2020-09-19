@@ -103,4 +103,3 @@ class SRN(LSTMStackedDense):
         parser.add_argument('--n_layers', type=int, default=1)
         parser.add_argument('--batch_size', type=int, default=512+128)
         return parser
-        

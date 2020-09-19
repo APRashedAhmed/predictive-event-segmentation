@@ -179,18 +179,8 @@ if __name__ == '__main__':
 
     # Get Model and Dataset specific args
     temp_args, _ = parser.parse_known_args()
-    
+
     # Make sure this is correct
-    if hasattr(models, temp_args.model):
-        Model = getattr(models, temp_args.model)
-        parser = Model.add_model_specific_args(parser)
-    else:
-        raise Exception(
-            f'Invalid model "{temp_args.model}" passed. Check it is importable:'
-            f' "from prevseg.models import {temp_args.model}"'
-        )
-    
-    # Check this is correct as well
     if hasattr(datasets, temp_args.dataloader):
         Dataloader = getattr(datasets, temp_args.dataloader)
         parser = Dataloader.add_model_specific_args(parser)
@@ -200,7 +190,20 @@ if __name__ == '__main__':
             f'importable: "from prevseg.datasets import '
             f'{temp_args.dataloader}"'
         )
+
+    # Get temp args now with dataset args
+    temp_args, _ = parser.parse_known_args()
     
+    # Check this is correct as well
+    if hasattr(models, temp_args.model):
+        Model = getattr(models, temp_args.model)
+        parser = Model.add_model_specific_args(parser)
+    else:
+        raise Exception(
+            f'Invalid model "{temp_args.model}" passed. Check it is importable:'
+            f' "from prevseg.models import {temp_args.model}"'
+        )
+        
     # Get the parser
     hparams = parser.parse_args()
 

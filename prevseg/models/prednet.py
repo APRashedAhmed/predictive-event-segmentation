@@ -357,9 +357,24 @@ class PredNet(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = child_argparser(parent_parser)
         parser.add_argument('--n_layers', type=int, default=2)
-        parser.add_argument('--lr', type=float, default=0.001)        
+        parser.add_argument('--lr', type=float, default=0.0001)
         parser.add_argument('--output_mode', type=str, default='error')
         parser.add_argument('--layer_loss_mode', type=str, default='first')
+
+        # See if we have the right number of inputs and n_layers has been
+        # specified to infer default batch size
+        temp_args, _ = parser.parse_known_args()
+        default_batch_size = 256
+        if temp_args.input_size is not None and temp_args.input_size <= 2048:
+            if temp_args.n_layers is not None:
+                if temp_args.n_layers == 2:
+                    default_batch_size = 256 + 128
+                elif temp_args.n_layers == 1:
+                    default_batch_size = 512 + 128 + 64
+                
+        parser.add_argument('--batch_size', type=int,
+                            default=default_batch_size)
+        
         return parser
 
     
@@ -402,8 +417,6 @@ class PredNetTracked(PredNet):
                  **kwargs):
         super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
         self.track = track or self.track
-        self.run_num = None
-        self.tb_labels = None
         
     def top_down_pass(self):
         # Loop backwards
@@ -425,19 +438,20 @@ class PredNetTracked(PredNet):
             R, H = cell.recurrent(E, hx)
 
             # Optional tracking
-            cell.track_metric_diff(R, cell.R, 'representation')
-            cell.track_metric_diff(H[1], cell.H[1], 'hidden') # Just C array
+            if self.t != 0:
+                cell.track_metric_diff(R, cell.R, 'representation')
+                cell.track_metric_diff(H[1], cell.H[1], 'hidden') # Just C array
 
             # Update cell state
             cell.R, cell.H = R, H
             
     def bottom_up_pass(self):
-        for cell in self.cells:
+        for l, cell in enumerate(self.cells):
             # Go from R to A_hat
             A_hat = cell.dense(cell.R)
 
             # Convenience
-            if self.output_mode == 'prediction' and cell.layer_num == 0:
+            if self.output_mode == 'prediction' and l == 0:
                 self.frame_prediction = A_hat
 
             # Split to 2 Es
@@ -452,14 +466,11 @@ class PredNetTracked(PredNet):
             cell.E = E
  
             # If not last layer, update stored A
-            if cell.layer_num < self.n_layers - 1:
+            if l < self.n_layers - 1:
                 self.A = cell.update_a(E)
 
     @auto_move_data                
-    def forward(self, input, output_mode=None, track=None, run_num=None,
-                tb_labels=None):
-        self.run_num = run_num or self.run_num
-        self.tb_labels = tb_labels or self.tb_labels
+    def forward(self, input, output_mode=None):
         self.output_mode = output_mode or self.output_mode
         _, time_steps, *_ = self.check_input_shape(input)
         

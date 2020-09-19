@@ -98,7 +98,7 @@ class ShapiroFractalsDataset(IterableDataset):
         parser.add_argument('--input_size', type=int, default=3*128*160)
         parser.add_argument('--time_steps', type=int, default=128)
         parser.add_argument('--max_steps', type=int, default=128)
-        parser.add_argument('--n_paths', type=int, default=16)
+        parser.add_argument('--n_paths', type=int, default=10)
         parser.add_argument('--n_pentagons', type=int, default=3)
         return parser
 

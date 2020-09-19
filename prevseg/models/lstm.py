@@ -154,10 +154,22 @@ class LSTMStacked(pn.PredNetTrackedSchapiro):
 
     @staticmethod
     def add_model_specific_args(parent_parser):
-        parser = child_argparser(pn.PredNet.add_model_specific_args(
-            parent_parser))
+        parser = child_argparser(
+            pn.PredNetTrackedSchapiro.add_model_specific_args(parent_parser))
         parser.add_argument('--layer_loss_mode', type=str, default='')
-        parser.add_argument('--batch_size', type=int, default=256+64+32)
+
+        # See if we have the right number of inputs and n_layers has been
+        # specified to infer default batch size
+        temp_args, _ = parser.parse_known_args()
+        if temp_args.input_size is not None and temp_args.input_size <= 2048:
+            if temp_args.n_layers is not None:
+                default_batch_size = 256
+                if temp_args.n_layers == 2:
+                    default_batch_size = 256 + 128
+                elif temp_args.n_layers == 1:
+                    default_batch_size = 512 + 32
+                parser.add_argument('--batch_size', type=int,
+                                    default=default_batch_size)
         return parser
         
 
@@ -191,4 +203,20 @@ class LSTMStackedDense(LSTMStacked):
                 self.A = cell.dense(cell.R)
             else:
                 self.A_hat = cell.dense(cell.R)
-        
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = child_argparser(LSTMStacked.add_model_specific_args(
+            parent_parser))
+        temp_args, _ = parser.parse_known_args()
+        if temp_args.input_size is not None and temp_args.input_size <= 2048:
+            if temp_args.n_layers is not None:
+                default_batch_size = 256
+                if temp_args.n_layers == 2:
+                    default_batch_size = 256 + 64 + 32
+                elif temp_args.n_layers == 1:
+                    default_batch_size = 512 + 32
+                parser.add_argument('--batch_size', type=int,
+                                    default=default_batch_size)
+        return parser
+                

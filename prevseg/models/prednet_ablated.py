@@ -21,6 +21,8 @@ class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
     """PredNet unexpectedly recapitulates human fmri data. Perhaps it is related
     to the error code being positive via the relus. See what happens to the
     representations when coding a signed error coding scheme.
+
+    Result: Structure learning is preserved, if not accentuated.
     """
     name = 'prednet_relu2tanh'
     track = ('representation', 'hidden', 'error_relu', 'error_tanh')
@@ -28,7 +30,7 @@ class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
         super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
     
     def bottom_up_pass(self):
-        for cell in self.cells:
+        for l, cell in enumerate(self.cells):
             # Go from R to A_hat
             A_hat = cell.dense(cell.R)
 
@@ -36,7 +38,7 @@ class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
             if self.output_mode == 'prediction' and cell.layer_num == 0:
                 self.frame_prediction = A_hat
 
-            # # Split to 2 Es
+            # Split to 2 Es
             pos = A_hat - self.A
             neg = self.A - A_hat
             
@@ -53,7 +55,7 @@ class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
             cell.E = E_tanh
 
             # If not last layer, update stored A
-            if cell.layer_num < self.n_layers - 1:
+            if l < self.n_layers - 1:
                 self.A = cell.update_a(E_tanh)
 
     def track_outputs(self):
@@ -64,7 +66,26 @@ class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
                  for cell in self.cells], 1)
             # batch x n_layers
             self.total_error.append(mean_error)
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = child_argparser(
+            pn.PredNetTrackedSchapiro.add_model_specific_args(parent_parser))
+
+        # See if n_layers has been specified to infer default batch size
+        temp_args, _ = parser.parse_known_args()
+        if temp_args.n_layers is not None:
+            if temp_args.n_layers == 2:
+                default_batch_size = 256 + 64 + 32
+            elif temp_args.n_layers == 1:
+                default_batch_size = 512 + 128 + 64
+            else: 
+                default_batch_size = 256
                 
+        parser.add_argument('--batch_size', type=int,
+                            default=default_batch_size)
+        return parser
+            
 
 class PredNetAblatedError(pn.PredNetTrackedSchapiro):
     """
