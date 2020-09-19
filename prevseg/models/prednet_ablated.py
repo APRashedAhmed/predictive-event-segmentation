@@ -8,9 +8,25 @@ from prevseg.models import prednet as pn
 
 logger = logging.getLogger(__name__)
 
+class PredCellRelu2Tanh(pn.PredCellTracked):
+    def reset(self, batch_size=None):
+        self.E_loss = torch.zeros(1,                  # Single time step
+                                  batch_size or self.hparams.batch_size,
+                                  2*self.a_channels[self.layer_num],
+                                  device=self.parent.dev)
+        return super().reset(batch_size=batch_size)
 
-class PredNetReLU2Tanh(pn.PredNetTrackedSchapiro):
+    
+class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
+    """PredNet unexpectedly recapitulates human fmri data. Perhaps it is related
+    to the error code being positive via the relus. See what happens to the
+    representations when coding a signed error coding scheme.
+    """
     name = 'prednet_relu2tanh'
+    track = ('representation', 'hidden', 'error_relu', 'error_tanh')
+    def __init__(self, hparams, CellClass=PredCellRelu2Tanh, *args, **kwargs):
+        super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
+    
     def bottom_up_pass(self):
         for cell in self.cells:
             # Go from R to A_hat
@@ -21,35 +37,33 @@ class PredNetReLU2Tanh(pn.PredNetTrackedSchapiro):
                 self.frame_prediction = A_hat
 
             # # Split to 2 Es
-            pos = F.relu(A_hat - self.A)
-            neg = F.relu(self.A - A_hat)
-            E_relu = torch.cat([pos, neg], 2)
-
-            # Optional Error tracking
-            cell.track_error(self.output_mode, E)
+            pos = A_hat - self.A
+            neg = self.A - A_hat
+            
+            E_relu = F.relu(torch.cat([pos, neg], 2))
+            cell.track_metric_diff(E_relu, cell.E_loss, 'error_relu')
+            # Update the loss error
+            cell.E_loss = E_relu
 
             # Keep above to use as the loss, create tanh for signalling
-            pos = F.tanh(A_hat - self.A)
-            neg = F.tanh(self.A - A_hat)       
-            E_tanh = torch.cat([pos, neg], 2)
+            E_tanh = F.tanh(torch.cat([pos, neg], 2))
+            cell.track_metric_diff(E_tanh, cell.E, 'error_tanh')
             
             # Update cell error
-            cell.E = E
+            cell.E = E_tanh
 
             # If not last layer, update stored A
             if cell.layer_num < self.n_layers - 1:
-                self.A = cell.update_a(E)
+                self.A = cell.update_a(E_tanh)
 
-    def _common_step(self, batch, batch_idx):
-        data, path = batch
-        prediction_errors = self.forward(data) # batch x n_layers x nt
-        loc_batch = prediction_errors.size(0)
-        loss = torch.mm(prediction_errors.view(-1, self.time_steps), 
-                          self.time_loss_weights) # batch*n_layers x 1
-        if self.layer_loss_mode is not None:
-            loss = torch.mm(loss.view(loc_batch, -1), 
-                              self.layer_loss_weights)
-        return torch.mean(loss, axis=0)
+    def track_outputs(self):
+        if self.output_mode == 'error':
+            mean_error = torch.cat(
+                [torch.mean(cell.E_loss.view(cell.E_loss.size(1), -1),
+                            1, keepdim=True)
+                 for cell in self.cells], 1)
+            # batch x n_layers
+            self.total_error.append(mean_error)
                 
 
 class PredNetAblatedError(pn.PredNetTrackedSchapiro):
@@ -60,7 +74,6 @@ class PredNetAblatedError(pn.PredNetTrackedSchapiro):
     name = 'prednet_error_ablated'
     track = ('representation_diff', 'hidden_diff')
     def __init__(self, hparams, *args, **kwargs):
-        assert hparams.layer_loss_mode == 'first'
         super().__init__(hparams, *args, **kwargs)
     
     def bottom_up_pass(self):

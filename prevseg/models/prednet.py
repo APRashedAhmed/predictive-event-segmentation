@@ -130,13 +130,6 @@ class PredNet(pl.LightningModule):
         
         self.dev = 'cuda:0'
         
-        # if self.hparams.device == 'cuda' and torch.cuda.is_available():
-        #     print('Using GPU', flush=True)
-        #     self.dev = 'cuda:0'
-        # else:
-        #     print('Using CPU', flush=True)
-        #     self.dev = torch.device('cpu')
-
         # Put together the model
         self.build_model()                
         
@@ -377,10 +370,13 @@ class PredCellTracked(PredCell):
                  *args, **kwargs):
         super().__init__(parent, layer_num, hparams, a_channels, r_channels,
                          *args, **kwargs)
+        self.init_diff_lists()
+
+    def init_diff_lists(self):
         # Tracking
-        self.hidden_diff_list = []
-        self.representation_diff_list = []
-        self.error_diff_list = []
+        if self.parent is not None:
+            for tracked_attr in self.parent.track:
+                setattr(self, f'{tracked_attr}_diff_list', list())
 
     def track_metric_diff(self, m1, m2, name, output_mode=None):
         # Steal parent's output mode if there is one and None is passed
@@ -395,9 +391,7 @@ class PredCellTracked(PredCell):
             getattr(self, f'{name}_diff_list').append(diff)            
 
     def reset(self, *args, **kwargs):
-        self.hidden_diff_list = []
-        self.representation_diff_list = []        
-        self.error_diff_list = []
+        self.init_diff_lists()
         return super().reset(*args, **kwargs)
         
             
