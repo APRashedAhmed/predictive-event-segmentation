@@ -31,11 +31,17 @@ def main(hparams, Model, Dataset):
             n_pentagons=hparams.n_pentagons))
     else:
         raise ValueError(f'Invalid entry for mapping: {hparams.mapping}')
+
+    # Create experiment name
+    hparams.name = name_from_hparams(hparams)
+    hparams.exp_name = name_from_hparams(hparams, short=True)
+    if hparams.verbose:
+        print(f'Beginning experiment: "{hparams.name}"')    
     
     # Neptune Logger
     logger = NeptuneLogger(
         project_name=f"{hparams.user}/{hparams.project}",
-        experiment_name=hparams.name,
+        experiment_name=hparams.exp_name,
         params=vars(hparams),
         tags=hparams.tags,
         offline_mode=hparams.offline_mode,
@@ -231,11 +237,6 @@ if __name__ == '__main__':
         hparams.ipdb = True
         hparams.no_checkpoints = not hparams.test_checkpoints
         hparams.offline_mode = not hparams.test_online
-
-    # Create experiment name
-    hparams.name = name_from_hparams(hparams)
-    if hparams.verbose:
-        print(f'Beginning experiment: "{hparams.name}"')
 
     # Seed is a string to allow for None/random as an input. Make it passable
     # to pl.seed_everything
