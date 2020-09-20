@@ -194,5 +194,5 @@ def name_from_hparams(hparams):
         hparams.tags or '',
         hparams.exp_suffix,
     ])
-    return '_'.join((str(n) for n in filter(None, list_name)))
+    return '_'.join((str(n).replace('-','_') for n in filter(None, list_name)))
     

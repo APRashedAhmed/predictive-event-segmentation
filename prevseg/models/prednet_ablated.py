@@ -4,18 +4,19 @@ import logging
 import torch
 import torch.nn.functional as F
 
+from prevseg.utils import child_argparser
 from prevseg.models import prednet as pn
 
 logger = logging.getLogger(__name__)
 
-class PredCellRelu2Tanh(pn.PredCellTracked):
+class PredCellELoss(pn.PredCellTracked):
     def reset(self, batch_size=None):
         self.E_loss = torch.zeros(1,                  # Single time step
                                   batch_size or self.hparams.batch_size,
                                   2*self.a_channels[self.layer_num],
                                   device=self.parent.dev)
         return super().reset(batch_size=batch_size)
-
+    
     
 class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
     """PredNet unexpectedly recapitulates human fmri data. Perhaps it is related
@@ -26,7 +27,7 @@ class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
     """
     name = 'prednet_relu2tanh'
     track = ('representation', 'hidden', 'error_relu', 'error_tanh')
-    def __init__(self, hparams, CellClass=PredCellRelu2Tanh, *args, **kwargs):
+    def __init__(self, hparams, CellClass=PredCellELoss, *args, **kwargs):
         super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
     
     def bottom_up_pass(self):
@@ -85,58 +86,37 @@ class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
         parser.add_argument('--batch_size', type=int,
                             default=default_batch_size)
         return parser
-            
 
-class PredNetAblatedError(pn.PredNetTrackedSchapiro):
-    """
-    This doesnt seem to work for some reason. Need to think more carefully
-    about it.
+    
+class PredNetErrorAblated(PredNetRelu2Tanh):
+    """It's seeming like the error code is the reason for the representations.
+    Let's try removing it entirely, in favor of a classical FF drive. This
+    *should* recreate the LSTMStacked curves.
     """
     name = 'prednet_error_ablated'
-    track = ('representation_diff', 'hidden_diff')
-    def __init__(self, hparams, *args, **kwargs):
-        super().__init__(hparams, *args, **kwargs)
-    
+    track = ('representation', 'hidden', 'error')
     def bottom_up_pass(self):
-        for cell in self.cells:
-                
+        for l, cell in enumerate(self.cells):
             # Go from R to A_hat
             A_hat = cell.dense(cell.R)
 
-            # Convenience            
-            if cell.layer_num == 0:
-                self.frame = self.A
-            if self.output_mode == 'error' and cell.layer_num == 0:
-                pos = F.relu(A_hat - self.frame)
-                neg = F.relu(self.frame - A_hat)
-                self.frame_error = torch.cat([pos, neg], )
+            # Convenience
+            if self.output_mode == 'prediction' and cell.layer_num == 0:
+                self.frame_prediction = A_hat
+            
+            # Split to 2 Es
+            pos = A_hat - self.A
+            neg = self.A - A_hat
+            
+            E = F.relu(torch.cat([pos, neg], 2))
+            cell.track_metric_diff(E, cell.E_loss, 'error')
+            # Update the loss error
+            cell.E_loss = E
+            
+            # Update cell error to be the activity inputted
+            cell.E = torch.cat([self.A, self.A])
 
-            # Remove these
-            # # Split to 2 Es
-            # pos = F.relu(A_hat - self.A)
-            # neg = F.relu(self.A - A_hat)
-            # E = torch.cat([pos, neg], 2)
-
-            # E Now just has two copies of A_hat
-            E = torch.cat([A_hat, A_hat], 2)
-
-            # No Need to track this
-            # # Optional Error tracking
-            # cell.track_error(self.output_mode, E)
-
-            # Update cell error
-            cell.E = E
-
-            # If not last layer, update stored A
-            if cell.layer_num < self.n_layers - 1:
-                self.A = cell.update_a(E)
-
-    def track_outputs(self):
-        if self.output_mode == 'error':
-            self.total_error.append(torch.cat(
-                [torch.mean(self.frame_error.view(self.frame_error.size(1), -1),
-                            1, keepdim=True)] * self.hparams.n_layers, 1))
+            # If not last layer, update stored A for the next layer
+            if l < self.n_layers - 1:
+                self.A = cell.update_a(cell.E)  
                                     
-
-        
-
