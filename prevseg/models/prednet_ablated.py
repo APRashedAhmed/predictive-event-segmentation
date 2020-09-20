@@ -119,4 +119,39 @@ class PredNetErrorAblated(PredNetRelu2Tanh):
             # If not last layer, update stored A for the next layer
             if l < self.n_layers - 1:
                 self.A = cell.update_a(cell.E)  
-                                    
+
+
+class PredNetRecurrenceAblated(pn.PredNetTrackedSchapiro):
+    """It could potentially be a combination of the error code and the
+    recurrence. Try ablating that to see what happens.
+    """
+    name = 'prednet_recurrence_ablated'
+    def top_down_pass(self):
+        # Loop backwards
+        for l, cell in reversed(list(enumerate(self.cells))):
+            # Convenience
+            E, R = cell.E, cell.R
+            
+            # First time step
+            if self.t == 0:
+                hx = (R, R)
+            else:
+                hx = cell.H
+
+            # If not in the last layer, upsample R and
+            if l < self.n_layers - 1:
+                E = torch.cat((E,  cell.upsample(self.cells[l+1].R)), 2)
+
+            # Update the values of R and H
+            R, H = cell.recurrent(E, hx)
+
+            # Optional tracking
+            if self.t != 0:
+                cell.track_metric_diff(R, cell.R, 'representation')
+                cell.track_metric_diff(H[1], cell.H[1], 'hidden') # Just C array
+
+            # # Update cell state
+            # cell.R, cell.H = R, H
+
+            # Only update the representations
+            cell.R = R
