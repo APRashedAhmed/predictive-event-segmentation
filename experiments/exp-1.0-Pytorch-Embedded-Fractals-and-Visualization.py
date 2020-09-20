@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 from pprint import pprint
 
-
 import ipdb
 import IPython
 import torch
@@ -16,6 +15,7 @@ from pytorch_lightning.loggers.neptune import NeptuneLogger
 
 import prevseg.constants as const
 from prevseg import index, models, datasets
+from prevseg.utils import name_from_hparams
 
 logger = logging.getLogger(__name__)
 
@@ -35,55 +35,66 @@ def main(hparams, Model, Dataset):
     # Neptune Logger
     logger = NeptuneLogger(
         project_name=f"{hparams.user}/{hparams.project}",
-        experiment_name=f'{hparams.name}_{hparams.exp_name}',
+        experiment_name=hparams.name,
         params=vars(hparams),
         tags=hparams.tags,
+        offline_mode=hparams.offline_mode,
     )
     
     if not hparams.load_model:
         # Checkpoint Call back
-        ckpt_dir = Path(hparams.dir_checkpoints) \
-            / f'{hparams.name}_{hparams.exp_name}'
-        if not ckpt_dir.exists():
-            ckpt_dir.mkdir(parents=True)
-        ckpt = pl.callbacks.ModelCheckpoint(
-            filepath=str(ckpt_dir /
-                         (hparams.exp_name + \
-                          '_{global_step:05d}_{epoch:03d}_{val_loss:.3f}')),
-            verbose=True,
-            save_top_k=hparams.save_top_k,
-            period=hparams.checkpoint_period,
-        )
+        if hparams.no_checkpoints:
+            checkpoint = False
+        else:
+            dir_checkpoints_experiment = (Path(hparams.dir_checkpoints) / 
+                                          hparams.name)
+            if not dir_checkpoints_experiment.exists():
+                dir_checkpoints_experiment.mkdir(parents=True)
+            
+            checkpoint = pl.callbacks.ModelCheckpoint(
+                filepath=str(dir_checkpoints_experiment /
+                             (f'seed={hparams.seed}' +
+                              '_{epoch}_{val_loss:.3f}')),
+                verbose=hparams.verbose,
+                save_top_k=hparams.save_top_k,
+                period=hparams.checkpoint_period,
+            )
 
         # Define the trainer
         trainer = pl.Trainer(
-            checkpoint_callback=ckpt,
+            checkpoint_callback=checkpoint,
             max_epochs=hparams.epochs,
             logger=logger,
             val_check_interval=hparams.val_check_interval,
             gpus=hparams.gpus,
         )
 
-        now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'\nCurrent time: {now}', flush=True)
-        print(f'\nRunning with following hparams:', flush=True)
-        pprint(vars(hparams))
+        # Keep track of time
+        if hparams.verbose:
+            now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            print(f'\nCurrent time: {now}', flush=True)
+            print(f'\nRunning with following hparams:', flush=True)
+            pprint(vars(hparams))
 
         # Define the model
         model = Model(hparams)
-        print(f'\nModel being used: \n{model}', flush=True)
-
-        model.prepare_data(mapping=eval(hparams.mapping),
+        if hparams.verbose:
+            print(f'\nModel being used: \n{model}', flush=True)
+        model.prepare_data(mapping=eval(hparams.mapping), # recall mapping->str
                            val_path=const.DEFAULT_PATH)
  
         print('\nBeginning training:', flush=True)
         now = datetime.datetime.now()
         # Train the model
         trainer.fit(model)
-        elapsed = datetime.datetime.now() - now
-        elapsed_fstr = time.strftime('%H:%M:%S', time.gmtime(elapsed.seconds))
-        print(f'\nTraining completed! Time Elapsed: {elapsed_fstr}', flush=True)
+        if hparams.verbose:
+            elapsed = datetime.datetime.now() - now
+            elapsed_fstr = time.strftime('%H:%M:%S', time.gmtime(
+                elapsed.seconds))
+            print(f'\nTraining completed! Time Elapsed: {elapsed_fstr}',
+                  flush=True)
 
+        
     else:
         # Get all the experiments with the name hparams.name*
         experiments = list(index.DIR_CHECKPOINTS.glob(
@@ -139,8 +150,9 @@ def main(hparams, Model, Dataset):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='PredNetTrackedSchapiro')
-    parser.add_argument('--dataset', type=str,
+    parser.add_argument('-m', '--model', type=str,
+                        default='PredNetTrackedSchapiro')
+    parser.add_argument('-d', '--dataset', type=str,
                         default='SchapiroResnetEmbeddingDataset')
     parser.add_argument('--load_model', action='store_true')
     parser.add_argument('--ipy', action='store_true')
@@ -149,31 +161,35 @@ if __name__ == '__main__':
     parser.add_argument('--user', type=str, default='aprashedahmed')
     parser.add_argument('--project', type=str, default='sandbox')
     parser.add_argument('--tags', nargs='+')
+    parser.add_argument('--no_checkpoints', action='store_true')
+    parser.add_argument('--offline_mode', action='store_true')
+    
+    parser.add_argument('--test_run', action='store_true')
+    parser.add_argument('--test_checkpoints', action='store_true')
     parser.add_argument('--test_epochs', type=int, default=2)
     parser.add_argument('--test_n_paths', type=int, default=2)
-    parser.add_argument('--test_run', action='store_true')
+    parser.add_argument('--test_online', action='store_true')
     parser.add_argument('--ipdb', action='store_true')
+    parser.add_argument('-v', '--verbose', action='store_true')
 
     parser.add_argument('--n_workers', type=int, default=1)
-    parser.add_argument('--epochs', type=int, default=25)
+    parser.add_argument('-e', '--epochs', type=int, default=25)
     parser.add_argument('--gpus', type=float, default=1)
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--seed', type=str, default='random')
-    parser.add_argument('--batch_size', type=int, default=256+128)
+    parser.add_argument('-s', '--seed', type=str, default='random')
+    parser.add_argument('-b', '--batch_size', type=int, default=256+128)
     parser.add_argument('--n_val', type=int, default=1)
     parser.add_argument('--mapping', type=str, default='random')
 
     parser.add_argument('--dir_checkpoints', type=str,
                         default=str(index.DIR_CHECKPOINTS))
-    parser.add_argument('--dir_weights', type=str,
-                        default=str(index.DIR_WEIGHTS))
-    parser.add_argument('--dir_logs', type=str,
-                        default=str(index.DIR_LOGS_TB))
     parser.add_argument('--checkpoint_period', type=float, default=1.0)
     parser.add_argument('--val_check_interval', type=float, default=1.0)
     parser.add_argument('--save_top_k', type=float, default=1)
-    parser.add_argument('--exp_name', type=str, default='')
     parser.add_argument('--name', type=str, default='')
+    parser.add_argument('--exp_prefix', type=str, default='')
+    parser.add_argument('--exp_suffix', type=str, default='')
+    
 
     # Get Model and Dataset specific args
     temp_args, _ = parser.parse_known_args()
@@ -204,18 +220,25 @@ if __name__ == '__main__':
     # Get the parser
     hparams = parser.parse_args()
 
-    # Get or create names
-    hparams.name = Model.name if not hparams.name else hparams.name
-    hparams.exp_name = hparams.exp_name or hparams.name
-
-    # If we are test-running, set dataset params to be very short
+    # If we are test-running, do a few things differently (scale down dataset,
+    # send to sandbox project, etc.)
     if hparams.test_run:
         hparams.epochs = hparams.test_epochs
         hparams.n_paths = hparams.test_n_paths
-        hparams.exp_name += '_test_exp'
+        hparams.name = '_'.join(filter(None, ['test_run', hparams.exp_prefix]))
         hparams.project = 'sandbox'
+        hparams.verbose = True
+        hparams.ipdb = True
+        hparams.no_checkpoints = not hparams.test_checkpoints
+        hparams.offline_mode = not hparams.test_online
 
-    # Seed is a string to allow for 'None' as an input. Convert to a number
+    # Create experiment name
+    hparams.name = name_from_hparams(hparams)
+    if hparams.verbose:
+        print(f'Beginning experiment: "{hparams.name}"')
+
+    # Seed is a string to allow for None/random as an input. Make it passable
+    # to pl.seed_everything
     hparams.seed = None if 'None' in hparams.seed or hparams.seed == 'random' \
         else int(hparams.seed)
     
@@ -223,7 +246,7 @@ if __name__ == '__main__':
     hparams.hostname = socket.gethostname()
 
     # If running with test_run or ipdb
-    if hparams.test_run or hparams.ipdb:
+    if hparams.ipdb:
         with ipdb.launch_ipdb_on_exception():
             main(hparams, Model, Dataset)
     else:

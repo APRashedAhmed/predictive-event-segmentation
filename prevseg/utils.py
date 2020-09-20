@@ -173,3 +173,26 @@ def child_argparser(parents, add_help=False, conflict_handler='resolve', *args,
         conflict_handler=conflict_handler,
         *args, **kwargs
     )
+
+def name_from_hparams(hparams):
+    """Turns the inputed hparams into a standardized experiment name
+
+    Excluding any empty strings, it will be of the following form:
+    
+    {prefix}_{dataset}_{model}_epochs_{epochs}_batch_size_{batch_size}_tags_
+    {*tags}_{suffix}
+    """
+    list_name = flatten([
+        hparams.exp_prefix,
+        hparams.dataset,
+        hparams.model,
+        'epochs',
+        hparams.epochs,
+        'batch_size',
+        hparams.batch_size,
+        'tags' if hparams.tags else '',
+        hparams.tags or '',
+        hparams.exp_suffix,
+    ])
+    return '_'.join((str(n) for n in filter(None, list_name)))
+    

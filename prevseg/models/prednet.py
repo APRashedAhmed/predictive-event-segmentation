@@ -349,8 +349,9 @@ class PredNet(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         loss = self._common_step(batch, batch_idx)
-        result = pl.EvalResult(loss)
-        result.log('val_loss', loss, prog_bar=True)
+        result = pl.EvalResult(checkpoint_on=loss)
+        result.log('val_loss', loss, prog_bar=True, on_step=False,
+                   on_epoch=True)
         return result
 
     @staticmethod
