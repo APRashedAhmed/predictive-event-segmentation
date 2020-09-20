@@ -547,11 +547,9 @@ class PredNetTracked(PredNet):
         return self._visualize(outs_pe[0,:,:], vlines=borders,
                                title='Mean Prediction Errors')
         
-    def visualize_diffs(self, outs, borders=None):
+    def visualize_diffs(self, outs, borders=None, offset=0):
         figs = {}
         for diff in self.track:
-            offset = 0 if 'error' in diff else 1
-            # import ipdb; ipdb.set_trace()
             figs[diff] = self._visualize(
                 outs[diff],
                 vlines=borders,
