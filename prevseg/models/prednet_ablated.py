@@ -93,6 +93,12 @@ class PredNetErrorAblated(PredNetRelu2Tanh):
     """It's seeming like the error code is the reason for the representations.
     Let's try removing it entirely, in favor of a classical FF drive. This
     *should* recreate the LSTMStacked curves.
+
+    Results 1: Doesn't seem to reproduce, but doesnt learn structure. Seems like
+    the only difference is the size of the input. Try reducing to the
+    LSTMStacked size, and see again.
+
+    
     """
     name = 'prednet_error_ablated'
     track = ('representation', 'hidden', 'error')

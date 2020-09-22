@@ -120,6 +120,9 @@ def main(parser):
     else:
         raise ValueError(f'Invalid entry for mapping: {hparams.mapping}')
 
+    # Set the validation path
+    hparams.val_path = str(const.DEFAULT_PATH)
+
     # Create experiment name
     hparams.name = name_from_hparams(hparams)
     hparams.exp_name = name_from_hparams(hparams, short=True)
@@ -174,12 +177,15 @@ def main(parser):
         model = Model(hparams)
         if hparams.verbose:
             print(f'\nModel being used: \n{model}', flush=True)
-        model.prepare_data(val_path=const.DEFAULT_PATH)
+        # model.prepare_data(val_path=const.DEFAULT_PATH)
+
+        # Define the datamodule
+        datamodule = datasets.DataModuleConstructor(hparams, Dataset)
  
+        # Train the model
         print('\nBeginning training:', flush=True)
         now = datetime.datetime.now()
-        # Train the model
-        trainer.fit(model)
+        trainer.fit(model, datamodule=datamodule)
         if hparams.verbose:
             elapsed = datetime.datetime.now() - now
             elapsed_fstr = time.strftime('%H:%M:%S', time.gmtime(
@@ -189,35 +195,36 @@ def main(parser):
 
         
     else:
-        # Get all the experiments with the name hparams.name*
-        experiments = list(index.DIR_CHECKPOINTS.glob(
-            f'{hparams.name}_{hparams.exp_name}*'))
+        raise NotImplementedError
+        # # Get all the experiments with the name hparams.name*
+        # experiments = list(index.DIR_CHECKPOINTS.glob(
+        #     f'{hparams.name}_{hparams.exp_name}*'))
 
-        # import pdb; pdb.set_trace()
-        if len(experiments) > 1:
-            # Get the newest exp by v number
-            experiment_newest = sorted(
-                experiments,
-                key=lambda path: int(path.stem.split('_')[-1][1:]))[-1]
-            # Get the model with the best (lowest) val_loss
-        else:
-            experiment_newest = experiments[0]
-        experiment_newest_best_val = sorted(
-            experiment_newest.iterdir(),
-            key=lambda path: float(
-                path.stem.split('val_loss=')[-1].split('_')[0]))[0]
+        # # import pdb; pdb.set_trace()
+        # if len(experiments) > 1:
+        #     # Get the newest exp by v number
+        #     experiment_newest = sorted(
+        #         experiments,
+        #         key=lambda path: int(path.stem.split('_')[-1][1:]))[-1]
+        #     # Get the model with the best (lowest) val_loss
+        # else:
+        #     experiment_newest = experiments[0]
+        # experiment_newest_best_val = sorted(
+        #     experiment_newest.iterdir(),
+        #     key=lambda path: float(
+        #         path.stem.split('val_loss=')[-1].split('_')[0]))[0]
 
-        model = Model.load_from_checkpoint(str(experiment_newest_best_val))
-        model.logger = logger
-        ## LOOK AT THIS LATER
-        model.prepare_data(val_path=const.DEFAULT_PATH)
+        # model = Model.load_from_checkpoint(str(experiment_newest_best_val))
+        # model.logger = logger
+        # ## LOOK AT THIS LATER
+        # model.prepare_data(val_path=const.DEFAULT_PATH)
 
-        # Define the trainer
-        trainer = pl.Trainer(
-            logger=model.logger,
-            gpus=hparams.gpus,
-            max_epochs=1,
-        )
+        # # Define the trainer
+        # trainer = pl.Trainer(
+        #     logger=model.logger,
+        #     gpus=hparams.gpus,
+        #     max_epochs=1,
+        # )
 
     if not hparams.no_test:
         # Ensure we are in cuda for testing if specified
@@ -225,7 +232,7 @@ def main(parser):
             model.cuda()
 
         # Create the test data
-        test_data = np.array([model.ds.array_data[n]
+        test_data = np.array([datamodule.ds.array_data[n]
                               for n in const.DEFAULT_PATH]).reshape((
                                       1, len(const.DEFAULT_PATH), 2048))
         torch_data = torch.Tensor(test_data)

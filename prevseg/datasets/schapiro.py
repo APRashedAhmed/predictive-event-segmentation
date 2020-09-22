@@ -117,37 +117,40 @@ class SchapiroFractalsDataset(IterableDataset):
                                       paths_mapping_data)}
 
     @classmethod
-    def prepare_data(cls, model, hparams, *args, **kwargs):
-        model.ds = model.ds or cls(
-            batch_size=model.batch_size, 
-            n_pentagons=model.hparams.n_pentagons, 
-            max_steps=model.hparams.max_steps, 
-            n_paths=model.hparams.n_paths,
+    def prepare_data(cls, datamodule, val=False):
+        pass
+    
+    @classmethod
+    def setup_data(cls, hparams, datamodule, val=False):
+        datamodule.ds = datamodule.ds or cls(
+            batch_size=hparams.batch_size,
+            n_pentagons=hparams.n_pentagons, 
+            max_steps=hparams.max_steps, 
+            n_paths=hparams.n_paths,
             mapping=eval(hparams.mapping), # This is a str in hparams
         )
-        model.ds_val = model.ds_val or cls(
-            n_pentagons=model.hparams.n_pentagons,
-            batch_size=model.batch_size, 
-            n_paths=model.hparams.n_val,
-            max_steps=model.hparams.max_steps, 
-            mapping=model.ds.mapping,
-            mode='euclidean' if kwargs['val_path'] is None else 'custom',
-            custom_path=kwargs['val_path'],
+        datamodule.ds_val = datamodule.ds_val or cls(
+            n_pentagons=hparams.n_pentagons,
+            batch_size=hparams.batch_size, 
+            n_paths=hparams.n_val,
+            max_steps=hparams.max_steps, 
+            mapping=eval(hparams.mapping),
+            mode='custom' if hparams.val_path else 'euclidean',
+            custom_path=eval(hparams.val_path),
         )
 
     @staticmethod
-    def train_dataloader(model, hparams):
-        return DataLoader(model.ds, 
+    def train_dataloader(hparams, datamodule, ds):
+        return DataLoader(ds, 
                           batch_size=None,
                           num_workers=hparams.n_workers)
     
     @staticmethod
-    def val_dataloader(model, hparams):
-        return DataLoader(model.ds_val, 
+    def val_dataloader(hparams, datamodule, ds_val):
+        return DataLoader(ds_val, 
                           batch_size=None,
                           num_workers=hparams.n_workers)
     
-
     
 class SchapiroResnetEmbeddingDataset(SchapiroFractalsDataset):
     def __init__(self, dir_data=index.DIR_SCH_FRACTALS_EMB, *args, **kwargs):

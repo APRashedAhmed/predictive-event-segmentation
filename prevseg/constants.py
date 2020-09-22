@@ -14,7 +14,8 @@ IMAGENET_NORM_STD = (0.229, 0.224, 0.225)
 _euclid_nodes = np.array([11, 13, 14, 12, 13, 10, 12, 11, 14, 0, 3, 4, 2, 3,
                          1, 2, 0, 1, 4, 5, 8, 9, 7, 8, 6, 7, 5, 6, 9, 10])
 # Bidirectional euclidean walk 
-DEFAULT_PATH = np.concatenate((_euclid_nodes, np.flip(_euclid_nodes)[1:]))
+DEFAULT_PATH = np.concatenate((_euclid_nodes,
+                               np.flip(_euclid_nodes)[1:])).tolist()
 DEFAULT_MAPPING = {0: '1', 1: '60', 2: '95', 3: '100', 4: '14', 5: '2', 6: '63',
                    7: '58', 8: '96', 9: '55', 10: '99', 11: '50', 12: '7',
                    13: '89', 14: '12'}

@@ -9,6 +9,7 @@ import pkgutil
 try:
     from torch.utils.data import Dataset
     import prevseg.utils as utils
+    from prevseg.datasets.datamodule import DataModuleConstructor
 except ModuleNotFoundError:
     pass
 

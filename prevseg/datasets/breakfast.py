@@ -60,32 +60,38 @@ class _BreakfastClipsDataset(Dataset):
         return self._getitem(idx)
 
     @classmethod
-    def prepare_data(cls, model, hparams):
-        if model.ds is None:
-            print('Loading the i3d data from disk. This can take '
-                  'several minutes...', flush=True)
-        model.ds = model.ds or cls()
-        model.ds_length = len(model.ds)
+    def setup_data(cls, hparams, datamodule, val=False):
+        if not val:
+            if datamodule.ds is None:
+                print('Loading the i3d data from disk. This can take '
+                      'several minutes...', flush=True)
+            datamodule.ds = datamodule.ds or cls(hparams)
+            datamodule.ds_length = len(datamodule.ds)
         
-        n_test, n_val = hparams.n_test, hparams.n_val
-        indices = list(range(model.ds_length))
-        
-        model.test_sampler = SubsetRandomSampler(indices[:n_test])
-        model.val_sampler = SubsetRandomSampler(indices[n_test : n_test+n_val])
-        model.train_sampler = SubsetRandomSampler(indices[n_test+n_val:])
+            indices = list(range(datamodule.ds_length))
+            datamodule.train_sampler = SubsetRandomSampler(
+                indices[n_test+n_val:])
+
+        else:
+            datamodule.ds_val = datamodule.ds
+            indices = list(range(datamodule.ds_length))            
+            n_test, n_val = hparams.n_test, hparams.n_val
+            datamodule.val_sampler = SubsetRandomSampler(
+                indices[n_test : n_test+n_val])
+            # datamodule.test_sampler = SubsetRandomSampler(indices[:n_test])
 
     @staticmethod
-    def train_dataloader(model, hparams):
-        return DataLoader(model.ds, 
-                          batch_size=model.batch_size, 
-                          sampler=model.train_sampler,
+    def train_dataloader(hparams, datamodule, ds):
+        return DataLoader(ds, 
+                          batch_size=hparams.batch_size, 
+                          sampler=datamodule.train_sampler,
                           num_workers=hparams.n_workers)
 
     @staticmethod
-    def val_dataloader(model, hparams):
-        return DataLoader(model.ds, 
-                          batch_size=model.batch_size, 
-                          sampler=model.val_sampler,
+    def val_dataloader(hparams, datamodule, ds_val):
+        return DataLoader(ds_val, 
+                          batch_size=hparams.batch_size, 
+                          sampler=datamodule.val_sampler,
                           num_workers=hparams.n_workers)
 
         

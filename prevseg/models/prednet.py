@@ -14,8 +14,6 @@ from torch.autograd import Variable
 from pytorch_lightning.core.decorators import auto_move_data
 
 import prevseg.constants as const
-import prevseg.datasets.breakfast as bk
-import prevseg.datasets.schapiro as sch
 from prevseg import datasets
 from prevseg.utils import child_argparser
 from prevseg.torch.lstm_cell import LSTM
@@ -415,12 +413,12 @@ class PredNet(pl.LightningModule):
             )
         return figs
 
-    def prepare_data(self, *args, **kwargs):
-        self.Dataset.prepare_data(self, self.hparams, *args, **kwargs)
+    # def prepare_data(self, *args, **kwargs):
+    #     self.Dataset.prepare_data(self, self.hparams, *args, **kwargs)
         
-    def train_dataloader(self, *args, **kwargs):
-        return self.Dataset.train_dataloader(self, self.hparams, *args,
-                                             **kwargs)
+    # def train_dataloader(self, *args, **kwargs):
+    #     return self.Dataset.train_dataloader(self, self.hparams, *args,
+    #                                          **kwargs)
     
-    def val_dataloader(self, *args, **kwargs):
-        return self.Dataset.val_dataloader(self, self.hparams, *args, **kwargs)
+    # def val_dataloader(self, *args, **kwargs):
+    #     return self.Dataset.val_dataloader(self, self.hparams, *args, **kwargs)
