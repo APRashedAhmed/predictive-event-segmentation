@@ -13,7 +13,7 @@ from prevseg.utils import child_argparser
 
 logger = logging.getLogger(__name__)
 
-class LSTMCell(pn.PredCellTracked):
+class LSTMCell(pn.PredCell):
     name = 'lstmcell'
     
     def __init__(self, parent, layer_num, hparams, a_channels, r_channels,
@@ -54,7 +54,7 @@ class LSTMCell(pn.PredCellTracked):
         return super().update_parent(module_names=module_names)
 
 
-class LSTMCellDense(LSTMCell, pn.PredCellTracked):
+class LSTMCellDense(LSTMCell, pn.PredCell):
     name = 'lstmcell_dense'
     def __init__(self, parent, layer_num, hparams, a_channels, r_channels,
                  *args, **kwargs):
@@ -75,7 +75,7 @@ class LSTMCellDense(LSTMCell, pn.PredCellTracked):
         return super().update_parent(module_names=module_names)
 
 
-class LSTMStacked(pn.PredNetTrackedSchapiro):
+class LSTMStacked(pn.PredNetSchapiro):
     name = 'lstmstacked'
     track = ('representation', 'hidden')
     def __init__(self, hparams, CellClass=LSTMCell, a_channels=None,
@@ -152,7 +152,7 @@ class LSTMStacked(pn.PredNetTrackedSchapiro):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = child_argparser(
-            pn.PredNetTrackedSchapiro.add_model_specific_args(parent_parser))
+            pn.PredNetSchapiro.add_model_specific_args(parent_parser))
         parser.add_argument('--layer_loss_mode', type=str, default='')
 
         # See if we have the right number of inputs and n_layers has been

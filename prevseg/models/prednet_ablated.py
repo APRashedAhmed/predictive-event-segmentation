@@ -9,7 +9,8 @@ from prevseg.models import prednet as pn
 
 logger = logging.getLogger(__name__)
 
-class PredCellELoss(pn.PredCellTracked):
+
+class PredCellELoss(pn.PredCell):
     def reset(self, batch_size=None):
         self.E_loss = torch.zeros(1,                  # Single time step
                                   batch_size or self.hparams.batch_size,
@@ -18,7 +19,7 @@ class PredCellELoss(pn.PredCellTracked):
         return super().reset(batch_size=batch_size)
     
     
-class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
+class PredNetRelu2Tanh(pn.PredNetSchapiro):
     """PredNet unexpectedly recapitulates human fmri data. Perhaps it is related
     to the error code being positive via the relus. See what happens to the
     representations when coding a signed error coding scheme.
@@ -71,7 +72,7 @@ class PredNetRelu2Tanh(pn.PredNetTrackedSchapiro):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = child_argparser(
-            pn.PredNetTrackedSchapiro.add_model_specific_args(parent_parser))
+            pn.PredNetSchapiro.add_model_specific_args(parent_parser))
 
         # See if n_layers has been specified to infer default batch size
         temp_args, _ = parser.parse_known_args()
@@ -121,7 +122,7 @@ class PredNetErrorAblated(PredNetRelu2Tanh):
                 self.A = cell.update_a(cell.E)  
 
 
-class PredNetRecurrenceAblated(pn.PredNetTrackedSchapiro):
+class PredNetRecurrenceAblated(pn.PredNetSchapiro):
     """It could potentially be a combination of the error code and the
     recurrence. Try ablating that to see what happens.
     """

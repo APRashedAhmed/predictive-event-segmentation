@@ -157,7 +157,7 @@ def main(hparams, Model, Dataset):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--model', type=str,
-                        default='PredNetTrackedSchapiro')
+                        default='PredNetSchapiro')
     parser.add_argument('-d', '--dataset', type=str,
                         default='SchapiroResnetEmbeddingDataset')
     parser.add_argument('--load_model', action='store_true')
