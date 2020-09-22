@@ -177,7 +177,6 @@ def main(parser):
         model = Model(hparams)
         if hparams.verbose:
             print(f'\nModel being used: \n{model}', flush=True)
-        # model.prepare_data(val_path=const.DEFAULT_PATH)
 
         # Define the datamodule
         datamodule = datasets.DataModuleConstructor(hparams, Dataset)

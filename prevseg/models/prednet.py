@@ -150,7 +150,7 @@ class PredNet(pl.LightningModule):
         if hasattr(datasets, hparams.dataset):
             self.Dataset = getattr(datasets, hparams.dataset)
         else:
-            raise Exception(
+            raise ValueError(
                 f'Invalid dataset "{self.hparams.dataset}" passed. Check it is '
                 f'importable: "from prevseg.datasets import '
                 f'{self.hparams.dataset}"'
@@ -412,13 +412,3 @@ class PredNet(pl.LightningModule):
                 idx=i+1,
             )
         return figs
-
-    # def prepare_data(self, *args, **kwargs):
-    #     self.Dataset.prepare_data(self, self.hparams, *args, **kwargs)
-        
-    # def train_dataloader(self, *args, **kwargs):
-    #     return self.Dataset.train_dataloader(self, self.hparams, *args,
-    #                                          **kwargs)
-    
-    # def val_dataloader(self, *args, **kwargs):
-    #     return self.Dataset.val_dataloader(self, self.hparams, *args, **kwargs)
