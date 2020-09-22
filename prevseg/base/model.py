@@ -2,7 +2,7 @@
 import logging
 
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 
 from prevseg.utils import child_argparser
 
@@ -14,17 +14,20 @@ class BaseTorchModel:
     def __init__(self, hparams, *args, **kwargs):
         """Ensure hparams is a OmegaConf"""
         super().__init__(*args, **kwargs)
-        if isinstance(hparams, OmegaConf):
+        if isinstance(hparams, DictConfig):
             self.hparams = hparams
         elif isinstance(hparams, dict):
             self.hparams = OmegaConf.create(hparams)
         elif hasattr(hparams, '__dict__'):
             self.hparams = OmegaConf.create(vars(hparams))
+        else:
+            self.hparams = hparams
 
         self.n_layers = self.hparams.n_layers
         self.input_size = self.hparams.input_size
         self.time_steps = self.hparams.time_steps
-        self.batch_size = self.hparams.batch_size        
+        self.batch_size = self.hparams.batch_size
+        self.lr = self.hparams.lr or self.hparams.learning_rate
             
     def build_time_loss_weights(self, time_steps=None):
         time_steps = time_steps or self.time_steps
@@ -36,7 +39,7 @@ class BaseTorchModel:
         return time_loss_weights
                 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     @staticmethod
     def add_model_specific_args(parent_parser):

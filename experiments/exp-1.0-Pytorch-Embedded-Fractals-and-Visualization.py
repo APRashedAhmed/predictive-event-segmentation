@@ -11,6 +11,7 @@ import IPython
 import torch
 import numpy as np
 import pytorch_lightning as pl
+from omegaconf import OmegaConf
 from pytorch_lightning.loggers.neptune import NeptuneLogger
 
 import prevseg.constants as const
@@ -54,6 +55,10 @@ def main(parser):
     parser.add_argument('--checkpoint_period', type=float, default=1.0)
     parser.add_argument('--val_check_interval', type=float, default=1.0)
     parser.add_argument('--save_top_k', type=float, default=1)
+    parser.add_argument('--early_stop_mode', type=str, default='auto')
+    parser.add_argument('--early_stop_patience', type=int, default=10)
+    parser.add_argument('--early_stop_min_delta', type=str, default='0.000')
+
     parser.add_argument('--name', type=str, default='')
     parser.add_argument('--exp_prefix', type=str, default='')
     parser.add_argument('--exp_suffix', type=str, default='')
@@ -85,8 +90,8 @@ def main(parser):
             f' "from prevseg.models import {temp_args.model}"'
         )
         
-    # Get the parser
-    hparams = parser.parse_args()
+    # Get the parser and turn into an omegaconf
+    hparams = OmegaConf.create(vars(parser.parse_args()))
 
     # If we are test-running, do a few things differently (scale down dataset,
     # send to sandbox project, etc.)
@@ -157,6 +162,15 @@ def main(parser):
                 period=hparams.checkpoint_period,
             )
 
+        # Early stopping callback
+        early_stop_callback = pl.callbacks.EarlyStopping(
+            monitor='val_loss',
+            min_delta=float(hparams.early_stop_min_delta),
+            patience=hparams.early_stop_patience,
+            verbose=hparams.verbose,
+            mode=hparams.early_stop_mode,
+        )
+
         # Define the trainer
         trainer = pl.Trainer(
             checkpoint_callback=checkpoint,
@@ -164,14 +178,15 @@ def main(parser):
             logger=logger,
             val_check_interval=hparams.val_check_interval,
             gpus=hparams.gpus,
+            early_stop_callback=early_stop_callback,
         )
 
-        # Keep track of time
+        # Verbose messaging
         if hparams.verbose:
             now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             print(f'\nCurrent time: {now}', flush=True)
             print(f'\nRunning with following hparams:', flush=True)
-            pprint(vars(hparams))
+            pprint(hparams._content)
 
         # Define the model
         model = Model(hparams)
