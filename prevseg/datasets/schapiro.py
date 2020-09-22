@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageOps
-from torch.utils.data import IterableDataset
+from torch.utils.data import DataLoader, IterableDataset
 
 from prevseg import index
 from prevseg.utils import isiterable, child_argparser
@@ -115,6 +115,38 @@ class SchapiroFractalsDataset(IterableDataset):
         return {node : path.stem
                 for node, path in zip(range(len(G.nodes)),
                                       paths_mapping_data)}
+
+    @classmethod
+    def prepare_data(cls, model, hparams, *args, **kwargs):
+        model.ds = model.ds or cls(
+            batch_size=model.batch_size, 
+            n_pentagons=model.hparams.n_pentagons, 
+            max_steps=model.hparams.max_steps, 
+            n_paths=model.hparams.n_paths,
+            mapping=eval(hparams.mapping), # This is a str in hparams
+        )
+        model.ds_val = model.ds_val or cls(
+            n_pentagons=model.hparams.n_pentagons,
+            batch_size=model.batch_size, 
+            n_paths=model.hparams.n_val,
+            max_steps=model.hparams.max_steps, 
+            mapping=model.ds.mapping,
+            mode='euclidean' if kwargs['val_path'] is None else 'custom',
+            custom_path=kwargs['val_path'],
+        )
+
+    @staticmethod
+    def train_dataloader(model, hparams):
+        return DataLoader(model.ds, 
+                          batch_size=None,
+                          num_workers=hparams.n_workers)
+    
+    @staticmethod
+    def val_dataloader(model, hparams):
+        return DataLoader(model.ds_val, 
+                          batch_size=None,
+                          num_workers=hparams.n_workers)
+    
 
     
 class SchapiroResnetEmbeddingDataset(SchapiroFractalsDataset):

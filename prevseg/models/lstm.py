@@ -75,7 +75,7 @@ class LSTMCellDense(LSTMCell, pn.PredCell):
         return super().update_parent(module_names=module_names)
 
 
-class LSTMStacked(pn.PredNetSchapiro):
+class LSTMStacked(pn.PredNet):
     name = 'lstmstacked'
     track = ('representation', 'hidden')
     def __init__(self, hparams, CellClass=LSTMCell, a_channels=None,
@@ -152,7 +152,7 @@ class LSTMStacked(pn.PredNetSchapiro):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = child_argparser(
-            pn.PredNetSchapiro.add_model_specific_args(parent_parser))
+            pn.PredNet.add_model_specific_args(parent_parser))
         parser.add_argument('--layer_loss_mode', type=str, default='')
 
         # See if we have the right number of inputs and n_layers has been

@@ -19,145 +19,9 @@ from prevseg.utils import name_from_hparams
 
 logger = logging.getLogger(__name__)
 
-def main(hparams, Model, Dataset):
-    # Set the seed
-    hparams.seed = pl.seed_everything(hparams.seed)
-
-    # Turn the string entry for mapping into a dict (that is also a str)
-    if hparams.mapping == 'default':
-        hparams.mapping = const.DEFAULT_MAPPING
-    elif hparams.mapping == 'random':
-        hparams.mapping = str(Dataset.random_mapping(
-            n_pentagons=hparams.n_pentagons))
-    else:
-        raise ValueError(f'Invalid entry for mapping: {hparams.mapping}')
-
-    # Create experiment name
-    hparams.name = name_from_hparams(hparams)
-    hparams.exp_name = name_from_hparams(hparams, short=True)
-    if hparams.verbose:
-        print(f'Beginning experiment: "{hparams.name}"')    
-    
-    # Neptune Logger
-    logger = NeptuneLogger(
-        project_name=f"{hparams.user}/{hparams.project}",
-        experiment_name=hparams.exp_name,
-        params=vars(hparams),
-        tags=hparams.tags,
-        offline_mode=hparams.offline_mode,
-    )
-    
-    if not hparams.load_model:
-        # Checkpoint Call back
-        if hparams.no_checkpoints:
-            checkpoint = False
-        else:
-            dir_checkpoints_experiment = (Path(hparams.dir_checkpoints) / 
-                                          hparams.name)
-            if not dir_checkpoints_experiment.exists():
-                dir_checkpoints_experiment.mkdir(parents=True)
-            
-            checkpoint = pl.callbacks.ModelCheckpoint(
-                filepath=str(dir_checkpoints_experiment /
-                             (f'seed={hparams.seed}' +
-                              '_{epoch}_{val_loss:.3f}')),
-                verbose=hparams.verbose,
-                save_top_k=hparams.save_top_k,
-                period=hparams.checkpoint_period,
-            )
-
-        # Define the trainer
-        trainer = pl.Trainer(
-            checkpoint_callback=checkpoint,
-            max_epochs=hparams.epochs,
-            logger=logger,
-            val_check_interval=hparams.val_check_interval,
-            gpus=hparams.gpus,
-        )
-
-        # Keep track of time
-        if hparams.verbose:
-            now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            print(f'\nCurrent time: {now}', flush=True)
-            print(f'\nRunning with following hparams:', flush=True)
-            pprint(vars(hparams))
-
-        # Define the model
-        model = Model(hparams)
-        if hparams.verbose:
-            print(f'\nModel being used: \n{model}', flush=True)
-        model.prepare_data(mapping=eval(hparams.mapping), # recall mapping->str
-                           val_path=const.DEFAULT_PATH)
- 
-        print('\nBeginning training:', flush=True)
-        now = datetime.datetime.now()
-        # Train the model
-        trainer.fit(model)
-        if hparams.verbose:
-            elapsed = datetime.datetime.now() - now
-            elapsed_fstr = time.strftime('%H:%M:%S', time.gmtime(
-                elapsed.seconds))
-            print(f'\nTraining completed! Time Elapsed: {elapsed_fstr}',
-                  flush=True)
-
-        
-    else:
-        # Get all the experiments with the name hparams.name*
-        experiments = list(index.DIR_CHECKPOINTS.glob(
-            f'{hparams.name}_{hparams.exp_name}*'))
-
-        # import pdb; pdb.set_trace()
-        if len(experiments) > 1:
-            # Get the newest exp by v number
-            experiment_newest = sorted(
-                experiments,
-                key=lambda path: int(path.stem.split('_')[-1][1:]))[-1]
-            # Get the model with the best (lowest) val_loss
-        else:
-            experiment_newest = experiments[0]
-        experiment_newest_best_val = sorted(
-            experiment_newest.iterdir(),
-            key=lambda path: float(
-                path.stem.split('val_loss=')[-1].split('_')[0]))[0]
-
-        model = Model.load_from_checkpoint(str(experiment_newest_best_val))
-        model.logger = logger
-        ## LOOK AT THIS LATER
-        model.prepare_data(mapping=eval(hparams.mapping),
-                           val_path=const.DEFAULT_PATH)
-
-        # Define the trainer
-        trainer = pl.Trainer(
-            logger=model.logger,
-            gpus=hparams.gpus,
-            max_epochs=1,
-        )
-
-    if not hparams.no_test:
-        # Ensure we are in cuda for testing if specified
-        if 'cuda' in hparams.device and torch.cuda.is_available():
-            model.cuda()
-
-        # Create the test data
-        test_data = np.array([model.ds.array_data[n]
-                              for n in const.DEFAULT_PATH]).reshape((
-                                      1, len(const.DEFAULT_PATH), 2048))
-        torch_data = torch.Tensor(test_data)
-
-        # Get the model outputs
-        outs = model.forward(torch_data, output_mode='eval')
-        outs.update({'error' : model.forward(torch_data, output_mode='error')})
-        
-        # Visualize the test data
-        figs = model.visualize(outs, borders=const.DEFAULT_BORDERS)
-        if not hparams.no_graphs:
-            for name, fig in figs.items():
-                model.logger.experiment.log_image(name, fig)
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+def main(parser):
     parser.add_argument('-m', '--model', type=str,
-                        default='PredNetSchapiro')
+                        default='PredNet')
     parser.add_argument('-d', '--dataset', type=str,
                         default='SchapiroResnetEmbeddingDataset')
     parser.add_argument('--load_model', action='store_true')
@@ -170,12 +34,10 @@ if __name__ == '__main__':
     parser.add_argument('--no_checkpoints', action='store_true')
     parser.add_argument('--offline_mode', action='store_true')
     
-    parser.add_argument('--test_run', action='store_true')
     parser.add_argument('--test_checkpoints', action='store_true')
     parser.add_argument('--test_epochs', type=int, default=2)
     parser.add_argument('--test_n_paths', type=int, default=2)
     parser.add_argument('--test_online', action='store_true')
-    parser.add_argument('--ipdb', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
 
     parser.add_argument('--n_workers', type=int, default=1)
@@ -245,10 +107,151 @@ if __name__ == '__main__':
     
     # Get the hostname for book keeping
     hparams.hostname = socket.gethostname()
+    
+    # Set the seed
+    hparams.seed = pl.seed_everything(hparams.seed)
+
+    # Turn the string entry for mapping into a dict (that is also a str)
+    if hparams.mapping == 'default':
+        hparams.mapping = const.DEFAULT_MAPPING
+    elif hparams.mapping == 'random':
+        hparams.mapping = str(Dataset.random_mapping(
+            n_pentagons=hparams.n_pentagons))
+    else:
+        raise ValueError(f'Invalid entry for mapping: {hparams.mapping}')
+
+    # Create experiment name
+    hparams.name = name_from_hparams(hparams)
+    hparams.exp_name = name_from_hparams(hparams, short=True)
+    if hparams.verbose:
+        print(f'Beginning experiment: "{hparams.name}"')    
+    
+    # Neptune Logger
+    logger = NeptuneLogger(
+        project_name=f"{hparams.user}/{hparams.project}",
+        experiment_name=hparams.exp_name,
+        params=vars(hparams),
+        tags=hparams.tags,
+        offline_mode=hparams.offline_mode,
+    )
+    
+    if not hparams.load_model:
+        # Checkpoint Call back
+        if hparams.no_checkpoints:
+            checkpoint = False
+        else:
+            dir_checkpoints_experiment = (Path(hparams.dir_checkpoints) / 
+                                          hparams.name)
+            if not dir_checkpoints_experiment.exists():
+                dir_checkpoints_experiment.mkdir(parents=True)
+            
+            checkpoint = pl.callbacks.ModelCheckpoint(
+                filepath=str(dir_checkpoints_experiment /
+                             (f'seed={hparams.seed}' +
+                              '_{epoch}_{val_loss:.3f}')),
+                verbose=hparams.verbose,
+                save_top_k=hparams.save_top_k,
+                period=hparams.checkpoint_period,
+            )
+
+        # Define the trainer
+        trainer = pl.Trainer(
+            checkpoint_callback=checkpoint,
+            max_epochs=hparams.epochs,
+            logger=logger,
+            val_check_interval=hparams.val_check_interval,
+            gpus=hparams.gpus,
+        )
+
+        # Keep track of time
+        if hparams.verbose:
+            now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            print(f'\nCurrent time: {now}', flush=True)
+            print(f'\nRunning with following hparams:', flush=True)
+            pprint(vars(hparams))
+
+        # Define the model
+        model = Model(hparams)
+        if hparams.verbose:
+            print(f'\nModel being used: \n{model}', flush=True)
+        model.prepare_data(val_path=const.DEFAULT_PATH)
+ 
+        print('\nBeginning training:', flush=True)
+        now = datetime.datetime.now()
+        # Train the model
+        trainer.fit(model)
+        if hparams.verbose:
+            elapsed = datetime.datetime.now() - now
+            elapsed_fstr = time.strftime('%H:%M:%S', time.gmtime(
+                elapsed.seconds))
+            print(f'\nTraining completed! Time Elapsed: {elapsed_fstr}',
+                  flush=True)
+
+        
+    else:
+        # Get all the experiments with the name hparams.name*
+        experiments = list(index.DIR_CHECKPOINTS.glob(
+            f'{hparams.name}_{hparams.exp_name}*'))
+
+        # import pdb; pdb.set_trace()
+        if len(experiments) > 1:
+            # Get the newest exp by v number
+            experiment_newest = sorted(
+                experiments,
+                key=lambda path: int(path.stem.split('_')[-1][1:]))[-1]
+            # Get the model with the best (lowest) val_loss
+        else:
+            experiment_newest = experiments[0]
+        experiment_newest_best_val = sorted(
+            experiment_newest.iterdir(),
+            key=lambda path: float(
+                path.stem.split('val_loss=')[-1].split('_')[0]))[0]
+
+        model = Model.load_from_checkpoint(str(experiment_newest_best_val))
+        model.logger = logger
+        ## LOOK AT THIS LATER
+        model.prepare_data(val_path=const.DEFAULT_PATH)
+
+        # Define the trainer
+        trainer = pl.Trainer(
+            logger=model.logger,
+            gpus=hparams.gpus,
+            max_epochs=1,
+        )
+
+    if not hparams.no_test:
+        # Ensure we are in cuda for testing if specified
+        if 'cuda' in hparams.device and torch.cuda.is_available():
+            model.cuda()
+
+        # Create the test data
+        test_data = np.array([model.ds.array_data[n]
+                              for n in const.DEFAULT_PATH]).reshape((
+                                      1, len(const.DEFAULT_PATH), 2048))
+        torch_data = torch.Tensor(test_data)
+
+        # Get the model outputs
+        outs = model.forward(torch_data, output_mode='eval')
+        outs.update({'errors' : model.forward(torch_data, output_mode='error')})
+        
+        # Visualize the test data
+        # import ipdb; ipdb.set_trace()
+        figs = model.visualize(outs, borders=const.DEFAULT_BORDERS)
+        if not hparams.no_graphs:
+            for name, fig in figs.items():
+                model.logger.experiment.log_image(name, fig)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ipdb', action='store_true')
+    parser.add_argument('--test_run', action='store_true')    
+
+    # Check if we should have ipdb 
+    temp_args, _ = parser.parse_known_args()
 
     # If running with test_run or ipdb
-    if hparams.ipdb:
+    if temp_args.ipdb or temp_args.test_run:
         with ipdb.launch_ipdb_on_exception():
-            main(hparams, Model, Dataset)
+            main(parser)
     else:
-        main(hparams, Model, Dataset)
+        main(parser)

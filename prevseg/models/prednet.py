@@ -11,15 +11,15 @@ import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 from torch.nn import functional as F, GRU
 from torch.autograd import Variable
-from torch.utils.data import DataLoader
-from torch.utils.data.sampler import SubsetRandomSampler
 from pytorch_lightning.core.decorators import auto_move_data
 
 import prevseg.constants as const
 import prevseg.datasets.breakfast as bk
 import prevseg.datasets.schapiro as sch
+from prevseg import datasets
 from prevseg.utils import child_argparser
 from prevseg.torch.lstm_cell import LSTM
+from prevseg.visualization import visualize_schapiro_walk
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +147,16 @@ class PredNet(pl.LightningModule):
         self.a_channels = a_channels
         self.r_channels = r_channels
         self.CellClass = CellClass
-        self.track = track or self.track        
+        self.track = track or self.track
+
+        if hasattr(datasets, hparams.dataset):
+            self.Dataset = getattr(datasets, hparams.dataset)
+        else:
+            raise Exception(
+                f'Invalid dataset "{self.hparams.dataset}" passed. Check it is '
+                f'importable: "from prevseg.datasets import '
+                f'{self.hparams.dataset}"'
+            )
         
         self.dev = 'cuda:0'
         
@@ -329,33 +338,7 @@ class PredNet(pl.LightningModule):
                 [torch.Tensor(getattr(cell, tracked+'_diff_list')).unsqueeze(0)
                  for cell in self.cells])
         return outputs
-    
-    def prepare_data(self):
-        if self.ds is None:
-            print('Loading the i3d data from disk. This can take '
-                  'several minutes...', flush=True)
-        self.ds = self.ds or bk.BreakfastI3DFVDataset()
-        self.ds_length = len(self.ds)
         
-        n_test, n_val = self.hparams.n_test, self.hparams.n_val
-        indices = list(range(self.ds_length))
-        
-        self.test_sampler = SubsetRandomSampler(indices[:n_test])
-        self.val_sampler = SubsetRandomSampler(indices[n_test : n_test+n_val])
-        self.train_sampler = SubsetRandomSampler(indices[n_test+n_val:])
-        
-    def train_dataloader(self):
-        return DataLoader(self.ds, 
-                          batch_size=self.batch_size, 
-                          sampler=self.train_sampler,
-                          num_workers=self.hparams.n_workers)
-    
-    def val_dataloader(self):
-        return DataLoader(self.ds, 
-                          batch_size=self.batch_size, 
-                          sampler=self.val_sampler,
-                          num_workers=self.hparams.n_workers)
-    
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
     
@@ -412,85 +395,32 @@ class PredNet(pl.LightningModule):
                             default=default_batch_size)
         
         return parser
-
-    def _visualize(self, data, vlines=None, offset=0, title=''):
-        fig = plt.figure()
-        
-        len_data = len(data)
-        for i, layer_data in enumerate(data):
-            ax = fig.add_subplot(11 + i + len_data*100)
-
-            if isinstance(layer_data, torch.Tensor) and layer_data.is_cuda:
-                layer_data = layer_data.cpu().detach().numpy()
-            
-            ax.plot(layer_data[offset:])
-            ax.set_ylabel(f'Layer {i+1}')
-            if vlines is not None:
-                [ax.axes.axvline(v, ls=':', label='Border Crossing')
-                 for v in vlines]
-                if i == 0:
-                    handles, labels = plt.gca().get_legend_handles_labels()
-                    by_label = dict(zip(labels, handles))
-                    ax.legend(by_label.values(), by_label.keys())
-                    
-            if i == len_data-1:
-                ax.set_xlabel('Step')
-
-        if title:
-            fig.suptitle(title)
-            
-        gcf = plt.gcf()
-        gcf.set_size_inches(16, 9)
-        return fig
-
-    def visualize_errors(self, outs_pe, borders=None):
-        return self._visualize(outs_pe[0,:,:], vlines=borders,
-                               title='Mean Prediction Errors')
-        
-    def visualize_diffs(self, outs, borders=None, offset=0):
+    
+    def visualize(self, data, borders=None, offset=0):
         figs = {}
-        for diff in self.track:
-            figs[diff] = self._visualize(
-                outs[diff],
+        if 'error' in data.keys():
+            figs = {'errors' : visualize_schapiro_walk(
+                data['errors'].view(self.hparams.n_layers, -1),
+                vlines=borders,
+                title='Mean Prediction Errors',
+                idx=0)}
+        
+        for i, diff in enumerate(self.track):
+            figs[diff+'_diffs'] = visualize_schapiro_walk(
+                data[diff],
                 vlines=borders,
                 offset=offset,
-                title=f'Mean {diff.replace("_", " ").title()}'
+                title=f'Mean {diff.replace("_", " ").title()}',
+                idx=i+1,
             )
         return figs
-    
-    def visualize(self, data, borders=None):
-        figs = self.visualize_diffs(data, borders=borders)
-        figs.update({'errors': self.visualize_errors(data['error'],
-                                                     borders=borders)})
-        return figs    
 
+    def prepare_data(self, *args, **kwargs):
+        self.Dataset.prepare_data(self, self.hparams, *args, **kwargs)
+        
+    def train_dataloader(self, *args, **kwargs):
+        return self.Dataset.train_dataloader(self, self.hparams, *args,
+                                             **kwargs)
     
-class PredNetSchapiro(PredNet):
-    name = 'prednet_tracked_schapiro'
-    def prepare_data(self, mapping=None, val_path=None):
-        self.ds = self.ds or sch.SchapiroResnetEmbeddingDataset(
-            batch_size=self.batch_size, 
-            n_pentagons=self.hparams.n_pentagons, 
-            max_steps=self.hparams.max_steps, 
-            n_paths=self.hparams.n_paths,
-            mapping=mapping,
-        )
-        self.ds_val = self.ds_val or sch.SchapiroResnetEmbeddingDataset(
-            n_pentagons=self.hparams.n_pentagons,
-            batch_size=self.batch_size, 
-            n_paths=self.hparams.n_val,
-            max_steps=self.hparams.max_steps, 
-            mapping=mapping or self.ds.mapping,
-            mode='euclidean' if val_path is None else 'custom',
-            custom_path=val_path,
-        )
-                
-    def train_dataloader(self):
-        return DataLoader(self.ds, 
-                          batch_size=None,
-                          num_workers=self.hparams.n_workers)
-    
-    def val_dataloader(self):
-        return DataLoader(self.ds_val, 
-                          batch_size=None,
-                          num_workers=self.hparams.n_workers)
+    def val_dataloader(self, *args, **kwargs):
+        return self.Dataset.val_dataloader(self, self.hparams, *args, **kwargs)

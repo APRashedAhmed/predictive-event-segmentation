@@ -6,10 +6,11 @@ from pathlib import Path
 import torch
 import pickle
 import numpy as np
-from torch.utils.data import Dataset, IterableDataset
+from torch.utils.data import DataLoader, Dataset, IterableDataset
+from torch.utils.data.sampler import SubsetRandomSampler
 
-from prevseg.utils import isiterable
 from prevseg import index
+from prevseg.utils import isiterable
 from prevseg.constants import DIM_H, DIM_W, DIM_C, DEFAULT_BATCH_SIZE
 
 logger = logging.getLogger(__name__)
@@ -57,8 +58,37 @@ class _BreakfastClipsDataset(Dataset):
 
     def __getitem__(self, idx):
         return self._getitem(idx)
-    
 
+    @classmethod
+    def prepare_data(cls, model, hparams):
+        if model.ds is None:
+            print('Loading the i3d data from disk. This can take '
+                  'several minutes...', flush=True)
+        model.ds = model.ds or cls()
+        model.ds_length = len(model.ds)
+        
+        n_test, n_val = hparams.n_test, hparams.n_val
+        indices = list(range(model.ds_length))
+        
+        model.test_sampler = SubsetRandomSampler(indices[:n_test])
+        model.val_sampler = SubsetRandomSampler(indices[n_test : n_test+n_val])
+        model.train_sampler = SubsetRandomSampler(indices[n_test+n_val:])
+
+    @staticmethod
+    def train_dataloader(model, hparams):
+        return DataLoader(model.ds, 
+                          batch_size=model.batch_size, 
+                          sampler=model.train_sampler,
+                          num_workers=hparams.n_workers)
+
+    @staticmethod
+    def val_dataloader(model, hparams):
+        return DataLoader(model.ds, 
+                          batch_size=model.batch_size, 
+                          sampler=model.val_sampler,
+                          num_workers=hparams.n_workers)
+
+        
 class Breakfast64DimFVDataset(_BreakfastClipsDataset):
     def __init__(self, *args, **kwargs):
         # Data Paths

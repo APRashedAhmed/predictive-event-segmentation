@@ -19,7 +19,7 @@ class PredCellELoss(pn.PredCell):
         return super().reset(batch_size=batch_size)
     
     
-class PredNetRelu2Tanh(pn.PredNetSchapiro):
+class PredNetRelu2Tanh(pn.PredNet):
     """PredNet unexpectedly recapitulates human fmri data. Perhaps it is related
     to the error code being positive via the relus. See what happens to the
     representations when coding a signed error coding scheme.
@@ -72,7 +72,7 @@ class PredNetRelu2Tanh(pn.PredNetSchapiro):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = child_argparser(
-            pn.PredNetSchapiro.add_model_specific_args(parent_parser))
+            pn.PredNet.add_model_specific_args(parent_parser))
 
         # See if n_layers has been specified to infer default batch size
         temp_args, _ = parser.parse_known_args()
@@ -122,7 +122,7 @@ class PredNetErrorAblated(PredNetRelu2Tanh):
                 self.A = cell.update_a(cell.E)  
 
 
-class PredNetRecurrenceAblated(pn.PredNetSchapiro):
+class PredNetRecurrenceAblated(pn.PredNet):
     """It could potentially be a combination of the error code and the
     recurrence. Try ablating that to see what happens.
     """
