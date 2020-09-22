@@ -14,7 +14,7 @@ from torch.autograd import Variable
 from pytorch_lightning.core.decorators import auto_move_data
 
 import prevseg.constants as const
-from prevseg import datasets
+from prevseg.base import BaseTorchModel
 from prevseg.utils import child_argparser
 from prevseg.torch.lstm_cell import LSTM
 from prevseg.visualization import visualize_schapiro_walk
@@ -81,7 +81,7 @@ class PredCell(object):
         # Tracking
         if self.parent is not None:
             for tracked_attr in self.parent.track:
-                setattr(self, f'{tracked_attr}_diff_list', list())        
+                setattr(self, f'{tracked_attr}_diff_list', list())
             
     def reset(self, batch_size=None):
         batch_size = batch_size or self.hparams.batch_size
@@ -126,19 +126,14 @@ class PredCell(object):
             getattr(self, f'{name}_diff_list').append(diff)                
 
                 
-class PredNet(pl.LightningModule):
+class PredNet(BaseTorchModel, pl.LightningModule):
     name = 'prednet'
     track = ('hidden', 'error', 'representation')
     def __init__(self, hparams, ds=None, a_channels=None, r_channels=None,
                  CellClass=PredCell, ds_val=None, track=None):
-        super().__init__()
+        super().__init__(hparams)
         # Attribute definitions
-        self.hparams = hparams
-        self.n_layers = self.hparams.n_layers
         self.output_mode = self.hparams.output_mode
-        self.input_size = self.hparams.input_size
-        self.time_steps = self.hparams.time_steps
-        self.batch_size = self.hparams.batch_size
         self.layer_loss_mode = self.hparams.layer_loss_mode
         self.ds = ds
         self.ds_val = ds_val
@@ -146,15 +141,6 @@ class PredNet(pl.LightningModule):
         self.r_channels = r_channels
         self.CellClass = CellClass
         self.track = track or self.track
-
-        if hasattr(datasets, hparams.dataset):
-            self.Dataset = getattr(datasets, hparams.dataset)
-        else:
-            raise ValueError(
-                f'Invalid dataset "{self.hparams.dataset}" passed. Check it is '
-                f'importable: "from prevseg.datasets import '
-                f'{self.hparams.dataset}"'
-            )
         
         self.dev = 'cuda:0'
         
@@ -189,7 +175,7 @@ class PredNet(pl.LightningModule):
             self.layer_loss_mode) if self.layer_loss_mode else None
         # How much to weight errors at each timezstep
         self.time_loss_weights = self.build_time_loss_weights()
-        
+
     def build_layer_loss_weights(self, mode='first'):
         if type(mode) is str:
             if mode == 'first':
@@ -219,15 +205,24 @@ class PredNet(pl.LightningModule):
                 raise Exception(f'Invalid layer loss mode "{mode}".')
         elif isinstance(mode, torch.Tensor):
             return mode
-            
-    def build_time_loss_weights(self, time_steps=None):
-        time_steps = time_steps or self.time_steps
-        # How much to weight errors at each timestep
-        time_loss_weights = 1. / (time_steps-1) * torch.ones(time_steps, 1,
-                                                             device=self.dev)
-        # Dont count first time step
-        time_loss_weights[0] = 0
-        return time_loss_weights
+
+    @auto_move_data
+    def forward(self, input, output_mode=None):
+        self.output_mode = output_mode or self.output_mode
+        _, time_steps, *_ = self.check_input_shape(input)
+        
+        self.total_error = []
+        
+        for self.t in range(time_steps):
+            self.A = input[:,self.t,:].unsqueeze(0).to(self.dev, torch.float)
+            # Loop from top layer to update R and H
+            self.top_down_pass()
+            # Loop bottom up to get E and A
+            self.bottom_up_pass()
+            # Track desired outputs
+            self.track_outputs()
+        
+        return self.return_output()        
     
     def check_input_shape(self, input):
         batch_size, time_steps, *input_size = input.shape
@@ -294,24 +289,6 @@ class PredNet(pl.LightningModule):
             if l < self.n_layers - 1:
                 self.A = cell.update_a(E)
 
-    @auto_move_data                
-    def forward(self, input, output_mode=None):
-        self.output_mode = output_mode or self.output_mode
-        _, time_steps, *_ = self.check_input_shape(input)
-        
-        self.total_error = []
-        
-        for self.t in range(time_steps):
-            self.A = input[:,self.t,:].unsqueeze(0).to(self.dev, torch.float)
-            # Loop from top layer to update R and H
-            self.top_down_pass()
-            # Loop bottom up to get E and A
-            self.bottom_up_pass()
-            # Track desired outputs
-            self.track_outputs()
-        
-        return self.return_output()
-
     def track_outputs(self):
         if self.output_mode == 'error':
             mean_error = torch.cat(
@@ -336,9 +313,6 @@ class PredNet(pl.LightningModule):
                 [torch.Tensor(getattr(cell, tracked+'_diff_list')).unsqueeze(0)
                  for cell in self.cells])
         return outputs
-        
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
     
     def _common_step(self, batch, batch_idx):
         data, path = batch
@@ -372,7 +346,8 @@ class PredNet(pl.LightningModule):
 
     @staticmethod
     def add_model_specific_args(parent_parser):
-        parser = child_argparser(parent_parser)
+        parser = child_argparser(BaseTorchModel.add_model_specific_args(
+            parent_parser))
         parser.add_argument('--n_layers', type=int, default=2)
         parser.add_argument('--lr', type=float, default=0.0001)
         parser.add_argument('--output_mode', type=str, default='error')
