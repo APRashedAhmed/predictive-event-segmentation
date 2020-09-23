@@ -26,7 +26,7 @@ class PredCell(object):
     name = 'predcell'
     """Organizational class."""
     def __init__(self, parent, layer_num, hparams, a_channels, r_channels, 
-                 RecurrentClass=LSTM):
+                 RecurrentClass=LSTM, copies=2):
         super().__init__()
         self.parent = parent
         self.layer_num = layer_num
@@ -34,6 +34,7 @@ class PredCell(object):
         self.a_channels = a_channels
         self.r_channels = r_channels
         self.RecurrentClass = RecurrentClass
+        self.copies = copies
         
         # Reccurent
         self.recurrent = self.build_recurrent()
@@ -51,9 +52,8 @@ class PredCell(object):
             
     def build_recurrent(self):
         recurrent = self.RecurrentClass(
-            2 * (self.a_channels[self.layer_num] +
-                 self.r_channels[self.layer_num+1]),
-            #+ self.r_channels[self.layer_num+1],
+            self.copies * (self.a_channels[self.layer_num] +
+                           self.r_channels[self.layer_num+1]),
             self.r_channels[self.layer_num])
         recurrent.reset_parameters()
         return recurrent
@@ -71,7 +71,7 @@ class PredCell(object):
         if self.layer_num < self.hparams.n_layers - 1:
             return nn.Sequential(
                 nn.Linear(
-                    2 * self.a_channels[self.layer_num],
+                    self.copies * self.a_channels[self.layer_num],
                     self.a_channels[self.layer_num + 1]),
                 nn.ReLU())
         else:
@@ -89,7 +89,7 @@ class PredCell(object):
         # E, R, and H variables
         self.E = torch.zeros(1,                  # Single time step
                              batch_size,
-                             2*self.a_channels[self.layer_num],
+                             self.copies*self.a_channels[self.layer_num],
                              device=self.parent.dev)
         self.R = torch.zeros(1,                  # Single time step
                              batch_size,

@@ -32,7 +32,7 @@ def main(parser):
     parser.add_argument('--no_test', action='store_true')
     parser.add_argument('--user', type=str, default='aprashedahmed')
     parser.add_argument('--project', type=str, default='sandbox')
-    parser.add_argument('--tags', nargs='+')
+    parser.add_argument('-t', '--tags', nargs='+')
     parser.add_argument('--no_checkpoints', action='store_true')
     parser.add_argument('--offline_mode', action='store_true')
     parser.add_argument('--save_weights_online', action='store_true')
@@ -44,7 +44,7 @@ def main(parser):
     parser.add_argument('-v', '--verbose', action='store_true')
 
     parser.add_argument('--n_workers', type=int, default=1)
-    parser.add_argument('-e', '--epochs', type=int, default=25)
+    parser.add_argument('-e', '--epochs', type=int, default=50)
     parser.add_argument('--gpus', type=float, default=1)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('-s', '--seed', type=str, default='random')

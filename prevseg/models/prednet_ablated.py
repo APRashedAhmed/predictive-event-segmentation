@@ -17,6 +17,13 @@ class PredCellELoss(pn.PredCell):
                                   2*self.a_channels[self.layer_num],
                                   device=self.parent.dev)
         return super().reset(batch_size=batch_size)
+
+    
+class PredCellNoESplit(PredCellELoss):
+    def __init__(self, parent, layer_num, hparams, a_channels, r_channels, 
+                 copies=1, *args, **kwargs):
+        super().__init__(parent, layer_num, hparams, a_channels, r_channels, 
+                         copies=copies, *args, **kwargs)
     
     
 class PredNetRelu2Tanh(pn.PredNet):
@@ -102,6 +109,9 @@ class PredNetErrorAblated(PredNetRelu2Tanh):
     """
     name = 'prednet_error_ablated'
     track = ('representation', 'hidden', 'error')
+    def __init__(self, hparams, CellClass=PredCellNoESplit, *args, **kwargs):
+        super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
+    
     def bottom_up_pass(self):
         for l, cell in enumerate(self.cells):
             # Go from R to A_hat
@@ -121,7 +131,7 @@ class PredNetErrorAblated(PredNetRelu2Tanh):
             cell.E_loss = E
             
             # Update cell error to be the activity inputted
-            cell.E = torch.cat([self.A, self.A])
+            cell.E = self.A
 
             # If not last layer, update stored A for the next layer
             if l < self.n_layers - 1:
