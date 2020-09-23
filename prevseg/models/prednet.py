@@ -363,10 +363,9 @@ class PredNet(BaseTorchModel, pl.LightningModule):
                     default_batch_size = 256 + 128
                 elif temp_args.n_layers == 1:
                     default_batch_size = 512 + 128 + 64
-                
-        parser.add_argument('--batch_size', type=int,
-                            default=default_batch_size)
         
+        parser.add_argument('-b', '--batch_size', type=int,
+                            default=default_batch_size)
         return parser
     
     def visualize(self, data, borders=None, offset=0):

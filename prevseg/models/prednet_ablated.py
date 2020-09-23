@@ -84,7 +84,7 @@ class PredNetRelu2Tanh(pn.PredNet):
             else: 
                 default_batch_size = 256
                 
-        parser.add_argument('--batch_size', type=int,
+        parser.add_argument('-b', '--batch_size', type=int,
                             default=default_batch_size)
         return parser
 

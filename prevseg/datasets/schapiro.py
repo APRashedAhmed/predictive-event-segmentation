@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, IterableDataset
 
 from prevseg import index
 from prevseg.utils import isiterable, child_argparser
-from prevseg.schapiro import walk, graph
+from prevseg.tasks.schapiro import walk, graph
 
 logger = logging.getLogger(__name__)
 

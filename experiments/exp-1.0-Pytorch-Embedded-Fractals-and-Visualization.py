@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import inspect
 import logging
 import socket
 import time
@@ -55,7 +56,7 @@ def main(parser):
     parser.add_argument('--checkpoint_period', type=float, default=1.0)
     parser.add_argument('--val_check_interval', type=float, default=1.0)
     parser.add_argument('--save_top_k', type=float, default=1)
-    parser.add_argument('--early_stop_mode', type=str, default='auto')
+    parser.add_argument('--early_stop_mode', type=str, default='min')
     parser.add_argument('--early_stop_patience', type=int, default=10)
     parser.add_argument('--early_stop_min_delta', type=str, default='0.000')
 
@@ -133,20 +134,26 @@ def main(parser):
     hparams.exp_name = name_from_hparams(hparams, short=True)
     if hparams.verbose:
         print(f'Beginning experiment: "{hparams.name}"')    
-    
+
     # Neptune Logger
     logger = NeptuneLogger(
         project_name=f"{hparams.user}/{hparams.project}",
         experiment_name=hparams.exp_name,
-        params=vars(hparams),
+        params=dict(hparams),
         tags=hparams.tags,
         offline_mode=hparams.offline_mode,
+        upload_source_files=[
+            str(Path(__file__).resolve()),
+            inspect.getfile(Model),
+            inspect.getfile(Dataset)],
     )
     
     if not hparams.load_model:
         # Checkpoint Call back
         if hparams.no_checkpoints:
             checkpoint = False
+            if hparams.verbose:
+                print('\nNot saving any checkpoints.\n', flush=True)
         else:
             dir_checkpoints_experiment = (Path(hparams.dir_checkpoints) / 
                                           hparams.name)

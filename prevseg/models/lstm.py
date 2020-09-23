@@ -165,7 +165,7 @@ class LSTMStacked(pn.PredNet):
                     default_batch_size = 256 + 128
                 elif temp_args.n_layers == 1:
                     default_batch_size = 512 + 32
-                parser.add_argument('--batch_size', type=int,
+                parser.add_argument('-b', '--batch_size', type=int,
                                     default=default_batch_size)
         return parser
         
@@ -213,7 +213,7 @@ class LSTMStackedDense(LSTMStacked):
                     default_batch_size = 256 + 64 + 32
                 elif temp_args.n_layers == 1:
                     default_batch_size = 512 + 32
-                parser.add_argument('--batch_size', type=int,
+                parser.add_argument('-b', '--batch_size', type=int,
                                     default=default_batch_size)
         return parser
                 
