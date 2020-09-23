@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class PredCell(object):
     name = 'predcell'
+    module_names = ('recurrent', 'dense', 'update_a')
     """Organizational class."""
     def __init__(self, parent, layer_num, hparams, a_channels, r_channels, 
                  RecurrentClass=LSTM, copies=2):
@@ -104,7 +105,8 @@ class PredCell(object):
                               self.r_channels[self.layer_num],
                               device=self.parent.dev))
         
-    def update_parent(self, module_names=('recurrent', 'dense', 'update_a')):
+    def update_parent(self, module_names=None):
+        module_names = module_names or self.module_names
         # Hack to appease the pytorch-gods
         for module_name in module_names:
             if hasattr(self, module_name) and \
@@ -275,9 +277,9 @@ class PredNet(BaseTorchModel, pl.LightningModule):
                 self.frame_prediction = A_hat
 
             # Split to 2 Es
-            pos = F.relu(A_hat - self.A)
-            neg = F.relu(self.A - A_hat)
-            E = torch.cat([pos, neg], 2)
+            pos = A_hat - self.A
+            neg = self.A - A_hat
+            E = F.relu(torch.cat([pos, neg], 2))
             
             # Optional Error tracking
             cell.track_metric_diff(E, cell.E, 'error')

@@ -59,7 +59,7 @@ def main(parser):
     parser.add_argument('--save_top_k', type=float, default=1)
     parser.add_argument('--early_stop_mode', type=str, default='min')
     parser.add_argument('--early_stop_patience', type=int, default=10)
-    parser.add_argument('--early_stop_min_delta', type=str, default='0.000')
+    parser.add_argument('--early_stop_min_delta', type=float, default=0.001)
 
     parser.add_argument('--name', type=str, default='')
     parser.add_argument('--exp_prefix', type=str, default='')
@@ -93,7 +93,7 @@ def main(parser):
         )
         
     # Get the parser and turn into an omegaconf
-    hparams = OmegaConf.create(vars(parser.parse_args()))
+    hparams = parser.parse_args()
 
     # If we are test-running, do a few things differently (scale down dataset,
     # send to sandbox project, etc.)
@@ -140,7 +140,7 @@ def main(parser):
     logger = NeptuneLogger(
         project_name=f"{hparams.user}/{hparams.project}",
         experiment_name=hparams.exp_name,
-        params=dict(hparams),
+        params=vars(hparams),
         tags=hparams.tags,
         offline_mode=hparams.offline_mode,
         upload_source_files=[
@@ -174,7 +174,7 @@ def main(parser):
         # Early stopping callback
         early_stop_callback = pl.callbacks.EarlyStopping(
             monitor='val_loss',
-            min_delta=float(hparams.early_stop_min_delta),
+            min_delta=hparams.early_stop_min_delta,
             patience=hparams.early_stop_patience,
             verbose=hparams.verbose,
             mode=hparams.early_stop_mode,
@@ -195,7 +195,7 @@ def main(parser):
             now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             print(f'\nCurrent time: {now}', flush=True)
             print(f'\nRunning with following hparams:', flush=True)
-            pprint(hparams._content)
+            pprint(vars(hparams))
 
         # Define the model
         model = Model(hparams)
