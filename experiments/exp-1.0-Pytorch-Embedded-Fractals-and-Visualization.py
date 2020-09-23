@@ -35,6 +35,7 @@ def main(parser):
     parser.add_argument('--tags', nargs='+')
     parser.add_argument('--no_checkpoints', action='store_true')
     parser.add_argument('--offline_mode', action='store_true')
+    parser.add_argument('--save_weights_online', action='store_true')
     
     parser.add_argument('--test_checkpoints', action='store_true')
     parser.add_argument('--test_epochs', type=int, default=2)
@@ -146,6 +147,7 @@ def main(parser):
             str(Path(__file__).resolve()),
             inspect.getfile(Model),
             inspect.getfile(Dataset)],
+        close_after_fit=False,
     )
     
     if not hparams.load_model:
@@ -214,7 +216,18 @@ def main(parser):
             print(f'\nTraining completed! Time Elapsed: {elapsed_fstr}',
                   flush=True)
 
-        
+        # Record the best checkpoint if we kept track of it
+        if not hparams.no_checkpoints:
+            logger.log_hyperparams({'best_checkpoint_path':
+                                               checkpoint.best_model_path})
+            # Save the weights online if desired
+            if hparams.save_weights_online:
+                if hparams.verbose:
+                    print('\nSending weights to neptune servers...', flush=True)
+                logger.log_artifact(checkpoint.best_model_path)
+                if hparams.verbose:
+                    print('Finished.', flush=True)
+
     else:
         raise NotImplementedError
         # # Get all the experiments with the name hparams.name*
@@ -263,11 +276,14 @@ def main(parser):
         outs.update({'errors' : model.forward(torch_data, output_mode='error')})
         
         # Visualize the test data
-        # import ipdb; ipdb.set_trace()
         figs = model.visualize(outs, borders=const.DEFAULT_BORDERS)
         if not hparams.no_graphs:
             for name, fig in figs.items():
-                model.logger.experiment.log_image(name, fig)
+                # Doing logger.log_image(...) doesn't work for some reason
+                model.logger.log_image(name, fig)
+
+    # Close the neptune logger
+    logger.experiment.stop()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
