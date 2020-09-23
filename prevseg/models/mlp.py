@@ -46,6 +46,13 @@ class DenseCell(PredCell):
                                   2*self.a_channels[self.layer_num],
                                   device=self.parent.dev)
         self.init_diff_lists()
+
+
+class DenseCellNoESplit(DenseCell):
+    def __init__(self, parent, layer_num, hparams, a_channels, r_channels, 
+                 copies=1, *args, **kwargs):
+        super().__init__(parent, layer_num, hparams, a_channels, r_channels, 
+                         copies=copies, *args, **kwargs)    
         
 
 class MLPErrorCode(PredNetRelu2Tanh):
@@ -94,5 +101,37 @@ class MLPErrorCode(PredNetRelu2Tanh):
             self.track_outputs()
         
         return self.return_output()        
+
+
+class MLPFeatureCode(MLPErrorCode):
+    name = 'mlp_feature_code'
+    def __init__(self, hparams, CellClass=DenseCellNoESplit, *args, **kwargs):
+        super().__init__(hparams, CellClass=CellClass, *args, **kwargs)
+    
+    def forward(self, input, output_mode=None):
+        self.output_mode = output_mode or self.output_mode
+        _, time_steps, *_ = self.check_input_shape(input)
+        
+        self.total_error = []
+        
+        for self.t in range(time_steps):
+            self.frame = input[:,self.t,:].unsqueeze(0).to(self.dev,
+                                                           torch.float)
+            self.A = self.frame
+            for l, cell in enumerate(self.cells):
+                self.A = cell.dense(self.A)
+                cell.track_metric_diff(self.A, cell.R, 'representation')
+                cell.R = self.A
+                
+            # Output Layer
+            A_hat = self.dense(self.A)
+
+            # Split to 2 Es
+            pos = A_hat - self.frame
+            neg = self.frame - A_hat
+            E = F.relu(torch.cat([pos, neg], 2))
             
+            if self.t > 0:
+                cell.track_metric_diff(E, cell.E_loss, 'error')
+            self.A = cell.E_loss = E
             
