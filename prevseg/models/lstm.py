@@ -108,14 +108,16 @@ class LSTMStacked(pn.PredNet):
         
         total_output = []
 
-        for self.t in range(time_steps):
-            self.frame = input[:,self.t,:].unsqueeze(0).to(self.dev,
-                                                           torch.float)
-            self.A = self.frame                
+        for self.t in range(time_steps-1):
+            self.input_frame = input[:,self.t,:].unsqueeze(0).to(self.dev,
+                                                                 torch.float)
+            self.target_frame = input[:,self.t+1,:].unsqueeze(0).to(self.dev,
+                                                                    torch.float)
+            self.A = self.input_frame
             self._cell_ops()
             
-            pos = F.relu(self.A_hat - self.frame)
-            neg = F.relu(self.frame - self.A_hat)
+            pos = F.relu(self.A_hat - self.target_frame)
+            neg = F.relu(self.target_frame - self.A_hat)
             self.E = torch.cat([pos, neg], 2)
             
             if self.output_mode == 'error':
@@ -168,6 +170,26 @@ class LSTMStacked(pn.PredNet):
                 parser.add_argument('-b', '--batch_size', type=int,
                                     default=default_batch_size)
         return parser
+
+    def _common_step(self, batch, batch_idx):
+        data, path = batch
+        prediction_errors = self.forward(data) # batch x n_layers x nt
+        loc_batch = prediction_errors.size(0)
+        loss = torch.mm(prediction_errors.view(-1, self.time_steps-1), 
+                          self.time_loss_weights) # batch*n_layers x 1
+        if self.layer_loss_mode is not None:
+            loss = torch.mm(loss.view(loc_batch, -1), 
+                              self.layer_loss_weights)
+        return torch.mean(loss, axis=0)
+
+    def build_time_loss_weights(self, time_steps=None):
+        time_steps = time_steps or self.time_steps
+        # How much to weight errors at each timestep
+        time_loss_weights = 1. / (time_steps-2) * torch.ones(time_steps-1, 1,
+                                                             device=self.dev)
+        # Dont count first time step
+        time_loss_weights[0] = 0
+        return time_loss_weights
         
 
 class LSTMStackedDense(LSTMStacked):
