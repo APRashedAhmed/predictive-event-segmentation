@@ -31,7 +31,7 @@ def main(parser):
     parser.add_argument('--no_graphs', action='store_true')
     parser.add_argument('--no_test', action='store_true')
     parser.add_argument('--user', type=str, default='aprashedahmed')
-    parser.add_argument('--project', type=str, default='sandbox')
+    parser.add_argument('-p', '--project', type=str, default='sandbox')
     parser.add_argument('-t', '--tags', nargs='+')
     parser.add_argument('--no_checkpoints', action='store_true')
     parser.add_argument('--offline_mode', action='store_true')
@@ -41,6 +41,7 @@ def main(parser):
     parser.add_argument('--test_epochs', type=int, default=2)
     parser.add_argument('--test_n_paths', type=int, default=2)
     parser.add_argument('--test_online', action='store_true')
+    parser.add_argument('--test_project', type=str, default='')
     parser.add_argument('-v', '--verbose', action='store_true')
 
     parser.add_argument('--n_workers', type=int, default=1)
@@ -101,7 +102,7 @@ def main(parser):
         hparams.epochs = hparams.test_epochs
         hparams.n_paths = hparams.test_n_paths
         hparams.name = '_'.join(filter(None, ['test_run', hparams.exp_prefix]))
-        hparams.project = 'sandbox'
+        hparams.project = hparams.test_project or 'sandbox'
         hparams.verbose = True
         hparams.ipdb = True
         hparams.no_checkpoints = not hparams.test_checkpoints
