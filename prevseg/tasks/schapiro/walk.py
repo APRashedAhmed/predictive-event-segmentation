@@ -59,9 +59,9 @@ def walk_random(G, source=None, steps=None):
         if isinstance(steps, (int, float)):
             steps -= 1
 
-def walk_euclidean(G, source=None):
+def walk_eulerian(G, source=None):
     """Iterator that yields the start and final position after each step on a
-    euclidean walk (visit every edge once).
+    eulerian walk (visit every edge once).
 
     Parameters
     ----------
@@ -81,6 +81,37 @@ def walk_euclidean(G, source=None):
     assert source in list(G.nodes)
     
     return nx.algorithms.euler.eulerian_path(G, source=source)
+
+def walk_bi_eulerian(G, source=None):
+    """Iterator that yields the start and final position after each step on a
+    bidirectional eulerian walk (visit every edge twice; once in each 
+    direction).
+
+    Parameters
+    ----------
+    G : nx.Graph
+    	Graph to be walked through
+
+    source : hashable (optional)
+    	Hashable type that identifies the start node to use in G. Randomly
+    	chooses a node if None
+
+    Yields
+    ------
+    (source, position) : (hashable, hashable)
+    	The start and end node identifiers after each step
+    """    
+    walk = walk_eulerian(G, source=source)
+    reverse_walk = []
+    
+    # Forward
+    for step in walk:
+        yield step
+        reverse_walk.append(step)
+        
+    # Reverse
+    for step in reversed(reverse_walk):
+        yield tuple(reversed(step))
 
 def walk_hamiltonian(G, source=None):
     """Iterator that yields a start and final position after each step on a

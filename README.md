@@ -9,6 +9,7 @@ and the Schapiro task reside here.
 ## Quick Links
 
 -   [Workbooks](https://github.com/aprashedahmed/predictive-event-segmentation/tree/master/docs/source/workbooks)
+-   [Reports](https://github.com/aprashedahmed/predictive-event-segmentation/tree/master/docs/source/reports)
 -	[Notes](https://github.com/aprashedahmed/predictive-event-segmentation/tree/master/docs/source/notes)
 
 ## Requirements
