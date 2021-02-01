@@ -3,5 +3,4 @@ coverage
 flake8
 codecov
 versioneer
-watermark
 ipdb

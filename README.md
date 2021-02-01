@@ -8,14 +8,14 @@ and the Schapiro task reside here.
 
 ## Quick Links
 
--   [Workbooks](https://github.com/apra93/predictive-event-segmentation/tree/master/docs/source/workbooks)
--	[Notes](https://github.com/apra93/predictive-event-segmentation/tree/master/docs/source/notes)
+-   [Workbooks](https://github.com/aprashedahmed/predictive-event-segmentation/tree/master/docs/source/workbooks)
+-	[Notes](https://github.com/aprashedahmed/predictive-event-segmentation/tree/master/docs/source/notes)
 
 ## Requirements
 
 Clone the repo first:
 
-    $ git clone https://github.com/apra93/predictive-event-segmentation.git
+    $ git clone https://github.com/aprashedahmed/predictive-event-segmentation.git
 
 Create the appropriate `conda` environment according to the specific project 
 within the repo you're interested in. For example, to create the breakfast 
@@ -36,5 +36,5 @@ Followed by adding the repo as a module:
 
 This repo is based on two cookiecutter templates. See the following github pages for more info:
 
--   [cookiecutter-data-science-pp](https://github.com/apra93/cookiecutter-data-science-pp)
+-   [cookiecutter-data-science-pp](https://github.com/aprashedahmed/cookiecutter-data-science-pp)
 -   [cookiecutter-data-science](https://github.com/drivendata/cookiecutter-data-science) 
